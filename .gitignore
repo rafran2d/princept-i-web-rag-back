@@ -1,0 +1,13 @@
+# Dossier des environnements virtuels
+Backend/venv/
+
+# Caches Python
+BAckend/__pycache__/
+*.pyc
+*.pyo
+
+# Fichiers de logs
+*.log
+
+# Configs locales
+.env
