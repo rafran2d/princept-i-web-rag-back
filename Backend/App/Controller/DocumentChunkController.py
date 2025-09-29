@@ -1,16 +1,23 @@
-from App.database import AsyncSessionLocal
-from App.Models.DocumentChunkModel import DocumentChunkModel
+from App.Service.Chunk_service import(
+    chunking,
+    create_chunk,
+)
 
-async def create_chunk(document_id,chunk_index,chunk):
+from App.Service.Document_service import (
+    set_chunked_document,set_document_failed   
+)
 
-    async with AsyncSessionLocal() as session:
-        async with session.begin(): 
-                new_chunk = DocumentChunkModel(
-                    document_id=document_id,
-                    chunk_index=chunk_index,
-                    chunk_content=chunk.text,
-                    meta_data=chunk.metadata
-                )
-                session.add(new_chunk)
-
-    return new_chunk.id
+async def chunk_documents(documents):
+    try:
+        for doc in documents:
+            if doc.status == "uploaded":
+                chunking(doc)
+                for chunk,i in enumerate(doc.chunks):
+                    chunk.id = await create_chunk(doc.id,i,chunk)
+                set_chunked_document(doc)
+                return documents
+            else:
+                raise Exception("Document's upload failed")    
+    except Exception as e:
+        set_document_failed(doc.id)
+        raise e

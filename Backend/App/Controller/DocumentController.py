@@ -1,21 +1,19 @@
-from pathlib import Path
-from App.Models.DocumentModel import DocumentModel
-from App.database import AsyncSessionLocal
+from App.Service.Document_service import (
+    load_file_from_uploads,
+    delete_file_from_uploads,
+    add_metadata_to_docs,
+    create_document,
+    set_upload_document
+    )
 
-async def create_document(chatid,document):
-
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-
-            try:
-                doc_content = document.text
-                doc_metadata = document.metadata
-                file_name = doc_metadata.get('file_name','')
-                doc_title = Path(file_name).stem
-                new_document =  DocumentModel(chat_id=chatid,title=doc_title,content=doc_content,meta_data=doc_metadata)
-                session.add(new_document)
-                await session.flush()
-                return new_document.id
-            
-            except Exception as e:
-                raise e
+async def upload_documents(chatid):
+    try:
+        documents = load_file_from_uploads()
+        documents = add_metadata_to_docs(documents)
+        for doc in documents:
+            doc.id = create_document(chatid,doc)
+            set_upload_document(doc)
+        delete_file_from_uploads()
+        return documents
+    except Exception as e:
+        raise Exception("document uploading failed")
