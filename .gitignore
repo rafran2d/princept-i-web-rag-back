@@ -1,13 +1,106 @@
-# Dossier des environnements virtuels
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
 Backend/venv/
+venv/
+env/
+ENV/
+.venv/
 
-# Caches Python
-BAckend/__pycache__/
-*.pyc
-*.pyo
-
-# Fichiers de logs
-*.log
-
-# Configs locales
+# Environment variables
 .env
+.env.local
+.env.production
+.env.staging
+
+# Database
+*.db
+*.sqlite3
+*.sqlite
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+Backend/App/Data/Uploads/
+*.tmp
+*.temp
+
+# Testing
+.coverage
+.pytest_cache/
+.tox/
+htmlcov/
+coverage.xml
+
+# Type checking
+.mypy_cache/
+.pyre/
+.pytype/
+dmypy.json
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Documentation
+docs/_build/
+docs.zip
+site/
+site_build/
+docs_build/
+
+# FastAPI specific
+test.db
+log.txt
+Pipfile.lock
+env3.*
+archive.zip
+
+# Alembic
+# Keep alembic.ini but ignore local overrides
+alembic_local.ini
+
+# Cache
+.cache
+
+# vim temporary files
+.*sw?
