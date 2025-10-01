@@ -1,19 +1,25 @@
+from App.Schema.DocumentSchema import (DocumentCreate,DocumentRead)
 from App.Service.Document_service import (
     load_file_from_uploads,
     delete_file_from_uploads,
     add_metadata_to_docs,
     create_document,
-    set_upload_document
     )
+from typing import List
+import uuid
 
-async def upload_documents(chatid):
+async def upload_documents(chatid : uuid.UUID) -> List[DocumentRead]:
     try:
         documents = load_file_from_uploads()
-        documents = add_metadata_to_docs(documents)
-        for doc in documents:
-            doc.id = create_document(chatid,doc)
-            set_upload_document(doc)
-        delete_file_from_uploads()
-        return documents
+        #delete_file_from_uploads()
+        documents_input =add_metadata_to_docs(documents,chatid)
+        documents_output : List[DocumentRead] = []
+        for doc in documents_input:
+            doc_obj_return = await create_document(doc)
+            documents_output.append(doc_obj_return)
+        return documents_output
+
     except Exception as e:
-        raise Exception("document uploading failed")
+        raise e
+    
+

@@ -1,8 +1,11 @@
 from llama_index.core.node_parser import TokenTextSplitter, SentenceSplitter
 from App.Models.DocumentChunkModel import DocumentChunkModel
+from App.Schema.DocumentChunkSchema import (ChunkCreate,ChunkRead)
+from App.Schema.DocumentSchema import (DocumentRead)
 from App.database import AsyncSessionLocal
 from copy import deepcopy
 import re
+
 
 token_splitter = TokenTextSplitter(chunk_size=750, chunk_overlap=75)
 sentence_splitter = SentenceSplitter(chunk_size=1000)
@@ -11,11 +14,11 @@ def clean_text(text):
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
 
-def chunking(document):
+def chunking(document : DocumentRead) -> DocumentRead:
     document.chunks = []
     nodes = sentence_splitter.get_nodes_from_documents([document])
     i = 0
-
+    chunk_index = 0
     while i < len(nodes):
         node = nodes[i]
         element_type = node.metadata.get('element_type', "").lower()
@@ -26,7 +29,14 @@ def chunking(document):
 
         elif element_type == "table":
             node.text = clean_text(node.text)
-            document.chunks.append(node)
+            chunk = ChunkCreate(
+                document_id = document.id,
+                chunk_index= chunk_index,
+                chunk_content= node.text,
+                meta_data= node.metadata
+            )
+            chunk_index += 1
+            document.chunks.append(chunk)
 
         elif element_type == "title":
             if i + 1 < len(nodes):
@@ -34,35 +44,55 @@ def chunking(document):
                 node.text = clean_text(node.text + "\n" + next_node.text)
                 i += 1
             else:
-                node.text = clean_text(node.text)
-            document.chunks.append(node)
+                chunk = ChunkCreate(
+                    document_id = document.id,
+                    chunk_index= chunk_index,
+                    chunk_content= node.text,
+                    meta_data= node.metadata
+                )
+                chunk_index += 1
+                document.chunks.append(chunk)
 
         else:
             if len(node.text.split()) > 200:
                 sub_nodes = token_splitter.split_text(node.text)
                 for sub_node in sub_nodes:
                     new_node = deepcopy(node)
-                    new_node.text = clean_text(sub_node)
-                    document.chunks.append(new_node)
+                    chunk = ChunkCreate(
+                    document_id = document.id,
+                    chunk_index= chunk_index,
+                    chunk_content= new_node.text,
+                    meta_data= node.metadata
+                    )
+                    chunk_index += 1
+                    document.chunks.append(chunk)
             else:
                 node.text = clean_text(node.text)
-                document.chunks.append(node)
+                chunk = ChunkCreate(
+                    document_id = document.id,
+                    chunk_index= chunk_index,
+                    chunk_content= node.text,
+                    meta_data= node.metadata
+                )
+                chunk_index += 1
+                document.chunks.append(chunk)
 
         i += 1
 
     return document
 
-async def create_chunk(document_id, chunk):
+async def create_chunk(chunk_input : ChunkCreate) -> ChunkRead :
     try:
         async with AsyncSessionLocal() as session:
             async with session.begin():
                 new_chunk = DocumentChunkModel(
-                    document_id=document_id,
-                    chunk_content=chunk.text,
-                    meta_data=chunk.metadata
+                    document_id=chunk_input.document_id,
+                    chunk_content=chunk_input.chunk_content,
+                    meta_data=chunk_input.meta_data
                 )
+                chunk_output = ChunkRead(**new_chunk)
                 session.add(new_chunk)
                 await session.flush()  
-        return new_chunk.id
+        return new_chunk
     except Exception as e:
         raise e

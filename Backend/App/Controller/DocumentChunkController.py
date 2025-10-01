@@ -1,23 +1,23 @@
+from App.Schema.DocumentSchema import DocumentRead
+from App.Schema.DocumentChunkSchema import (ChunkCreate,ChunkRead)
 from App.Service.Chunk_service import(
     chunking,
     create_chunk,
 )
-
+from typing import List
 from App.Service.Document_service import (
-    set_chunked_document,set_document_failed   
+    set_chunked_document,  
 )
 
-async def chunk_documents(documents):
+async def chunking_management(document : DocumentRead) -> List[ChunkRead]:
     try:
-        for doc in documents:
-            if doc.status == "uploaded":
-                chunking(doc)
-                for chunk,i in enumerate(doc.chunks):
-                    chunk.id = await create_chunk(doc.id,i,chunk)
-                set_chunked_document(doc)
-                return documents
-            else:
-                raise Exception("Document's upload failed")    
+        input : DocumentRead = chunking(document)
+        chunk_output_list : List[ChunkRead] = []
+        for chunk in input.chunks:
+           new_chunk_output = create_chunk(chunk)
+           chunk_output_list.append(new_chunk_output)
+        set_chunked_document(input.id)
+
+        return chunk_output_list
     except Exception as e:
-        set_document_failed(doc.id)
         raise e

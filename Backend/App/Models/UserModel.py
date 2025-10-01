@@ -1,6 +1,8 @@
 from ..database import Base
 from .ChatModel import ChatModel
+from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from App.Schema.UserShcema import RoleEnum
 import uuid
 import datetime
 
@@ -11,7 +13,7 @@ class UserModel(Base):
     email: Mapped[str] = mapped_column(unique=True, nullable=False)
     display_name: Mapped[str] = mapped_column(nullable=False)
     hashed_password: Mapped[str] = mapped_column(nullable=False)
-    role: Mapped[str] = mapped_column(default="user")
+    role: Mapped[RoleEnum] = mapped_column(SqlEnum(RoleEnum), default=RoleEnum.user)
     created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.utcnow)
 
     # Relationships
