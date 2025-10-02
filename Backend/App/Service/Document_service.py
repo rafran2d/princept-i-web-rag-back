@@ -8,11 +8,13 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from docx2pdf import convert
 from pathlib import Path
+from fastapi import UploadFile
 import uuid
 import os
 import PyPDF2
 import tempfile
 from typing import List
+import aiofiles
 
 
 def get_num_pages_pdf(file_path: str) -> int:
@@ -39,6 +41,14 @@ def delete_file_from_uploads():
         if os.path.isfile(file_path):
             os.remove(file_path)
 
+async def charge_document_uploads_directory(files: List[UploadFile]):
+    target_folder = "App/Data/Uploads"
+    os.makedirs(target_folder, exist_ok=True)
+    for file in files:
+        file_path = os.path.join(target_folder, file.filename)
+        async with aiofiles.open(file_path, "wb") as f:
+            content = await file.read()
+            await f.write(content)
 
 def add_metadata_to_docs(documents, chat_id: uuid.UUID) -> List[DocumentCreate]:
     docs: List[DocumentCreate] = []

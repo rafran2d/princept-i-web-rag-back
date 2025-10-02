@@ -1,3 +1,4 @@
+aiofiles==24.1.0
 aiohappyeyeballs==2.6.1
 aiohttp==3.12.15
 aiosignal==1.4.0
@@ -77,6 +78,7 @@ pypdf==6.0.0
 PyPDF2==3.0.1
 python-dateutil==2.9.0.post0
 python-dotenv==1.1.1
+python-multipart==0.0.20
 pytz==2025.2
 PyYAML==6.0.2
 regex==2025.9.1

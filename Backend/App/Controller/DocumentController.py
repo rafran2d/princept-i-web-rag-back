@@ -7,17 +7,20 @@ from App.Service.Document_service import (
     delete_file_from_uploads,
     add_metadata_to_docs,
     create_document,
+    charge_document_uploads_directory
     )
 from App.Exception.IngestionException import (
     SaveDocumentError,
     UnsupportedFileTypeError,
     AddMetadataError
 )
+from fastapi import UploadFile
 
-async def upload_documents(chatid : uuid.UUID) -> List[DocumentRead]:
+async def upload_documents(chatid : uuid.UUID,files : List[UploadFile]) -> List[DocumentRead]:
     try:
+        charge_document_uploads_directory(files)
         documents = load_file_from_uploads()
-        #delete_file_from_uploads()
+        delete_file_from_uploads()
         documents_input =add_metadata_to_docs(documents,chatid)
         documents_output : List[DocumentRead] = []
         for doc in documents_input:
