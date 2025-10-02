@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from .Route.ChatRoute import chat_route
 
 app = FastAPI(
     title="Princept RAG API",
@@ -15,13 +16,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+app.include_router(chat_route)
+
 @app.get("/")
 async def root():
     return {"message": "Princept RAG API is running!", "status": "healthy"}
 
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "service": "princept-rag-backend"}
 
 if __name__ == "__main__":
     import uvicorn

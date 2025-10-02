@@ -1,12 +1,18 @@
 from App.Schema.DocumentSchema import (DocumentCreate,DocumentRead)
+from pydantic import ValidationError
+from typing import List
+import uuid
 from App.Service.Document_service import (
     load_file_from_uploads,
     delete_file_from_uploads,
     add_metadata_to_docs,
     create_document,
     )
-from typing import List
-import uuid
+from App.Exception.IngestionException import (
+    SaveDocumentError,
+    UnsupportedFileTypeError,
+    AddMetadataError
+)
 
 async def upload_documents(chatid : uuid.UUID) -> List[DocumentRead]:
     try:
@@ -19,7 +25,9 @@ async def upload_documents(chatid : uuid.UUID) -> List[DocumentRead]:
             documents_output.append(doc_obj_return)
         return documents_output
 
-    except Exception as e:
-        raise e
+    except (ValueError, UnsupportedFileTypeError, ValidationError,SyntaxError,TypeError) as e:
+        raise AddMetadataError from e
     
+    except SaveDocumentError as e:
+        raise e
 

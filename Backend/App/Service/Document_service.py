@@ -2,6 +2,9 @@ from llama_index.core import SimpleDirectoryReader
 from App.Models.DocumentModel import DocumentModel
 from App.database import AsyncSessionLocal
 from App.Schema.DocumentSchema import DocumentCreate, DocumentRead, StatusEnum
+from App.Exception.IngestionException import (SaveDocumentError,UpdateDocumentStatusError,UnsupportedFileTypeError,DocumentFailedError)
+from sqlalchemy.exc import SQLAlchemyError
+from pydantic import ValidationError
 from sqlalchemy import select
 from docx2pdf import convert
 from pathlib import Path
@@ -38,60 +41,76 @@ def delete_file_from_uploads():
 
 
 def add_metadata_to_docs(documents, chat_id: uuid.UUID) -> List[DocumentCreate]:
-    try:
-        docs: List[DocumentCreate] = []
-        for doc in documents:
+    docs: List[DocumentCreate] = []
+    
+    for doc in documents:
+        try:
             file_name = doc.metadata.get('file_name')
             if not file_name:
-                raise ValueError("Document missing file_name in metadata")
+                raise ValueError("Document missing 'file_name' in metadata")
+            
             file_path = doc.metadata.get('file_path')
             if not file_path:
-                raise ValueError("Document missing file_path in metadata")
+                raise ValueError("Document missing 'file_path' in metadata")
+            
             file_ext = file_name.split('.')[-1].lower()
             doc.metadata["file_extension"] = file_ext
+            
             if file_ext == "pdf":
                 doc.metadata['num_pages'] = get_num_pages_pdf(file_path)
             elif file_ext == "docx":
                 doc.metadata['num_pages'] = get_num_pages_docx(file_path)
             else:
-                raise Exception(f"Type de fichier non supporté: {file_ext}")
+                raise UnsupportedFileTypeError(f"Document type not supported: {file_ext}")
+            
             doc_data = {
                 "chat_id": chat_id,
                 "text": doc.text,
                 "meta_data": doc.metadata,
             }
+            
             new_doc = DocumentCreate(**doc_data)
             docs.append(new_doc)
-        return docs
-    except Exception as e:
-        raise e
+        
+        except (ValueError, UnsupportedFileTypeError, ValidationError,SyntaxError, TypeError) as e:
+            raise e
+
+    return docs
+
 
 
 async def create_document(document: DocumentCreate) -> DocumentRead:
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            doc_title = Path(document.meta_data.get('file_name', '')).stem
-            new_document = DocumentModel(
-                chat_id=document.chat_id,
-                title=doc_title,
-                text=document.text,
-                meta_data=document.meta_data
-            )
-            session.add(new_document)
-            await session.flush()
-            return DocumentRead.from_orm(new_document)
+    try:
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                doc_title = Path(document.meta_data.get('file_name', '')).stem
+                new_document = DocumentModel(
+                    chat_id=document.chat_id,
+                    title=doc_title,
+                    text=document.text,
+                    meta_data=document.meta_data
+                )
+                session.add(new_document)
+                await session.flush()
 
+                return DocumentRead.from_orm(new_document)
+            
+    except (SQLAlchemyError,TypeError,SyntaxError) as e:
+        raise SaveDocumentError(f"Failed to create document {document.meta_data.get('file_name')}") from e
 
 async def update_document_status(document_id: uuid.UUID, new_status: StatusEnum):
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            stmt = select(DocumentModel).where(DocumentModel.id == document_id)
-            result = await session.execute(stmt)
-            document_obj = result.scalars().first()
-            if not document_obj:
-                raise Exception(f"Document id {document_id} not found")
-            document_obj.status = new_status
-            await session.commit()
+    try:
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                stmt = select(DocumentModel).where(DocumentModel.id == document_id)
+                result = await session.execute(stmt)
+                document_obj = result.scalars().first()
+                if not document_obj:
+                    raise Exception(f"Document id {document_id} not found")
+                document_obj.status = new_status
+                await session.commit()
+    except (SQLAlchemyError,TypeError,SyntaxError) as e:
+        raise UpdateDocumentStatusError(f'Failed to update status of  document {document_id}') from e
 
 
 
@@ -107,14 +126,17 @@ async def set_chunked_document(document_id: uuid.UUID):
                 document_obj.status = StatusEnum.chunked
                 await session.commit()
             elif document_obj.status == StatusEnum.failed:
-                raise Exception("documents uploading failed")
-            else:
-                raise Exception(f"Document id {document_id} in unexpected status: {document_obj.status}")
+                raise DocumentFailedError(f"Document {document_id} failed while being chunked")
 
 
 async def set_ready_document(document_id: uuid.UUID):
-    await update_document_status(document_id, StatusEnum.ready)
-
+    try:
+        await update_document_status(document_id, StatusEnum.ready)
+    except UpdateDocumentStatusError as e:
+        raise 
 
 async def set_document_failed(document_id: uuid.UUID):
-    await update_document_status(document_id, StatusEnum.failed)
+    try:
+        await update_document_status(document_id, StatusEnum.failed)
+    except UpdateDocumentStatusError as e:
+        raise 

@@ -2,7 +2,10 @@ from llama_index.core.node_parser import TokenTextSplitter, SentenceSplitter
 from App.Models.DocumentChunkModel import DocumentChunkModel
 from App.Schema.DocumentChunkSchema import (ChunkCreate,ChunkRead)
 from App.Schema.DocumentSchema import (DocumentRead)
+from App.Exception.IngestionException import (ChunkingError,SaveChunkError)
 from App.database import AsyncSessionLocal
+from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from copy import deepcopy
 import re
 
@@ -19,54 +22,16 @@ def chunking(document : DocumentRead) -> DocumentRead:
     nodes = sentence_splitter.get_nodes_from_documents([document])
     i = 0
     chunk_index = 0
-    while i < len(nodes):
-        node = nodes[i]
-        element_type = node.metadata.get('element_type', "").lower()
+    try:
+        while i < len(nodes):
+            node = nodes[i]
+            element_type = node.metadata.get('element_type', "").lower()
 
-        if element_type == "image":
-            i += 1
-            continue
-
-        elif element_type == "table":
-            node.text = clean_text(node.text)
-            chunk = ChunkCreate(
-                document_id = document.id,
-                chunk_index= chunk_index,
-                chunk_content= node.text,
-                meta_data= node.metadata
-            )
-            chunk_index += 1
-            document.chunks.append(chunk)
-
-        elif element_type == "title":
-            if i + 1 < len(nodes):
-                next_node = nodes[i + 1]
-                node.text = clean_text(node.text + "\n" + next_node.text)
+            if element_type == "image":
                 i += 1
-            else:
-                chunk = ChunkCreate(
-                    document_id = document.id,
-                    chunk_index= chunk_index,
-                    chunk_content= node.text,
-                    meta_data= node.metadata
-                )
-                chunk_index += 1
-                document.chunks.append(chunk)
+                continue
 
-        else:
-            if len(node.text.split()) > 200:
-                sub_nodes = token_splitter.split_text(node.text)
-                for sub_node in sub_nodes:
-                    new_node = deepcopy(node)
-                    chunk = ChunkCreate(
-                    document_id = document.id,
-                    chunk_index= chunk_index,
-                    chunk_content= new_node.text,
-                    meta_data= node.metadata
-                    )
-                    chunk_index += 1
-                    document.chunks.append(chunk)
-            else:
+            elif element_type == "table":
                 node.text = clean_text(node.text)
                 chunk = ChunkCreate(
                     document_id = document.id,
@@ -77,10 +42,51 @@ def chunking(document : DocumentRead) -> DocumentRead:
                 chunk_index += 1
                 document.chunks.append(chunk)
 
-        i += 1
+            elif element_type == "title":
+                if i + 1 < len(nodes):
+                    next_node = nodes[i + 1]
+                    node.text = clean_text(node.text + "\n" + next_node.text)
+                    i += 1
+                else:
+                    chunk = ChunkCreate(
+                        document_id = document.id,
+                        chunk_index= chunk_index,
+                        chunk_content= node.text,
+                        meta_data= node.metadata
+                    )
+                    chunk_index += 1
+                    document.chunks.append(chunk)
 
-    return document
+            else:
+                if len(node.text.split()) > 200:
+                    sub_nodes = token_splitter.split_text(node.text)
+                    for sub_node in sub_nodes:
+                        new_node = deepcopy(node)
+                        chunk = ChunkCreate(
+                        document_id = document.id,
+                        chunk_index= chunk_index,
+                        chunk_content= new_node.text,
+                        meta_data= node.metadata
+                        )
+                        chunk_index += 1
+                        document.chunks.append(chunk)
+                else:
+                    node.text = clean_text(node.text)
+                    chunk = ChunkCreate(
+                        document_id = document.id,
+                        chunk_index= chunk_index,
+                        chunk_content= node.text,
+                        meta_data= node.metadata
+                    )
+                    chunk_index += 1
+                    document.chunks.append(chunk)
 
+            i += 1
+
+        return document
+    except (ValidationError,SyntaxError,TypeError) as e :
+        raise ChunkingError(f"Chunking failed for document {document.id}: {e}") from e
+    
 async def create_chunk(chunk_input : ChunkCreate) -> ChunkRead :
     try:
         async with AsyncSessionLocal() as session:
@@ -94,5 +100,7 @@ async def create_chunk(chunk_input : ChunkCreate) -> ChunkRead :
                 session.add(new_chunk)
                 await session.flush()  
         return new_chunk
-    except Exception as e:
-        raise e
+    except SQLAlchemyError as e:
+        raise SaveChunkError(f"Failed to save the chunk") from e
+    except ValidationError as e:
+        raise SaveChunkError(f"Failed to save the chunk:{e}") from e
