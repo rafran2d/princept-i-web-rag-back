@@ -1,5 +1,6 @@
 from llama_index.core import SimpleDirectoryReader
 from App.Models.DocumentModel import DocumentModel
+from App.Models.UserModel import UserModel# temporary needed
 from App.database import AsyncSessionLocal
 from App.Schema.DocumentSchema import DocumentCreate, DocumentRead, StatusEnum
 from App.Exception.IngestionException import (SaveDocumentError,UpdateDocumentStatusError,UnsupportedFileTypeError,DocumentFailedError)
@@ -150,3 +151,16 @@ async def set_document_failed(document_id: uuid.UUID):
         await update_document_status(document_id, StatusEnum.failed)
     except UpdateDocumentStatusError as e:
         raise 
+
+# temporary function (ti will be deleted soon)
+async def get_user_prototype():
+    try:
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                stmt = select(UserModel)
+                resultUser = await session.execute(stmt)
+                User_obj = resultUser.scalars().first()
+
+                return User_obj
+    except Exception as e:
+        raise            

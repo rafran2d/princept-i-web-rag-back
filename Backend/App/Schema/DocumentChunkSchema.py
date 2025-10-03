@@ -16,6 +16,5 @@ class ChunkRead(BaseModel):
     chunk_index : int 
     chunk_content : str
     meta_data : Dict[str,Any]
-    embedding : Optional[EmbeddingCreate] = None
     class Config:
         from_attributes = True

@@ -7,7 +7,8 @@ from App.Service.Document_service import (
     delete_file_from_uploads,
     add_metadata_to_docs,
     create_document,
-    charge_document_uploads_directory
+    charge_document_uploads_directory,
+    get_user_prototype
     )
 from App.Exception.IngestionException import (
     SaveDocumentError,
@@ -29,7 +30,7 @@ async def upload_documents(chatid : uuid.UUID,files : List[UploadFile]) -> List[
         return documents_output
 
     except (ValueError, UnsupportedFileTypeError, ValidationError,SyntaxError,TypeError) as e:
-        raise AddMetadataError from e
+        raise AddMetadataError(e) from e
     
     except SaveDocumentError as e:
         raise e

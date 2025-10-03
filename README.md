@@ -25,6 +25,9 @@ Backend/
 │   ├── Service/        # Services (document ingestion)
 │   ├── Data/           # Temporary upload storage
 │   ├── Test/           # Tests
+|   ├── Seed/           # data seeder
+|   ├── Exception       # Excepiton class
+|   ├── Schema          # Pydantic Validation Class (input/output)
 │   ├── database.py     # Database configuration
 │   └── main.py         # Entry point
 ├── Migration/          # Alembic migration scripts
@@ -109,7 +112,6 @@ source venv/bin/activate  # Linux/macOS
 # Install dependencies
 pip install --upgrade pip
 pip install -r requirements.txt
-pip install alembic asyncpg uvicorn  # Additional required packages
 ```
 
 ### Database setup
@@ -133,6 +135,13 @@ Run database migrations:
 cd Backend
 source venv/bin/activate
 alembic upgrade head
+```
+Run database seeders:
+```bash
+# there are features that is not made yet so you need to run the database seeder to make some other features funcitonal
+
+cd Backend
+python -m App.Seed.UserSeed
 ```
 
 ## Running the Application

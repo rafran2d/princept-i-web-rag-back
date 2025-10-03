@@ -10,13 +10,13 @@ class SenderEnum(str,Enum):
     LLM = "LLM"
     user = "User"
 
-class MessageCreate(BaseModel):
+class MessageInput(BaseModel):
     chat_id : uuid.UUID
     role : SenderEnum = SenderEnum.user
     content : str
     sources : Optional[Dict[str,Any]] = None
 
-class MessageRead(BaseModel):
+class MessageOutput(BaseModel):
     id : uuid.UUID
     chat_id : uuid.UUID
     role : SenderEnum

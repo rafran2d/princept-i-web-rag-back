@@ -13,6 +13,8 @@ class EmbeddingRead(BaseModel):
     id : uuid.UUID
     document_chunk_id : uuid.UUID
     vector : list[float]
-
-    class Config:
-        orm_mode = True
+    model_config = {
+        "extra": "allow",
+        "from_attributes": True,
+        "validate_assignment": True
+    } 

@@ -11,6 +11,7 @@ class StatusEnum(str,Enum):
     ready = "ready"
     failed = "failed"
 
+
 class DocumentCreate(BaseModel):
     chat_id : uuid.UUID 
     text : str
@@ -26,7 +27,7 @@ class DocumentRead(BaseModel):
     id : uuid.UUID
     chat_id : uuid.UUID
     title : str
-    content : str
+    text : str
     meta_data : Dict[str,Any]
     created_at : datetime.datetime
     status : StatusEnum

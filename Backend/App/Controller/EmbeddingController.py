@@ -1,7 +1,7 @@
 from App.Service.Embedding_service import (chunk_embedding, create_embedding)
 from App.Schema.EmbeddingShcema import (EmbeddingRead)
 from App.Schema.DocumentChunkSchema import ChunkRead
-from typing import List,Dict,Any
+from typing import List
 from App.Exception.IngestionException import(
     SaveEmbeddingError,
     EmbeddingError
@@ -33,3 +33,4 @@ async def batch_embedding_process(chunks: List[ChunkRead]) :
             await asyncio.gather(*tasks, return_exceptions=True)
     except (SaveEmbeddingError,EmbeddingRead) as e:
         raise e
+    

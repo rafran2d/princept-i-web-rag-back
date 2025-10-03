@@ -16,7 +16,7 @@ load_dotenv()
 client = AsyncOpenAI(api_key=os.getenv("API_KEY"))
 
 
-async def chunk_embedding(chunk : ChunkRead) -> ChunkRead:
+async def chunk_embedding(chunk : ChunkRead) -> EmbeddingCreate:
     try:
         json_response = await client.embeddings.create(model="text-embedding-3-small",input=chunk.chunk_content)
         vector = json_response.data[0].embedding
@@ -25,26 +25,21 @@ async def chunk_embedding(chunk : ChunkRead) -> ChunkRead:
             "vector" : vector
         }
         embedding_create = EmbeddingCreate(**embedding_dict)
-        chunk.embedding = embedding_create
+        return embedding_create
     except ValidationError as e:
         raise EmbeddingError(f"Failed to embedd the following chunk {chunk.id}") from e
 
-async def create_embedding(chunk_input : ChunkRead) -> EmbeddingRead:
+async def create_embedding(Embedding : EmbeddingCreate) -> EmbeddingRead:
     try:
         async with AsyncSessionLocal() as session:
             async with session.begin():
                 new_embedding = EmbeddingModel(
-                    document_chunk_id = chunk_input.id,
-                    vector = chunk_input.embedding
+                    document_chunk_id = Embedding.document_chunk_id,
+                    vector = Embedding.vector
                 )
                 session.add(new_embedding)
                 await session.flush()
-                embedding_obj = {
-                    "id" : new_embedding.id,
-                    "document_chunk_id" : chunk_input.id,
-                    "vector" : chunk_input.embedding
-                }
-                embedding_output = EmbeddingRead(**embedding_output)
+                embedding_output = EmbeddingRead.from_orm(new_embedding)
                 return embedding_output
     except SQLAlchemyError as e:
-        raise SaveEmbeddingError(f"Failed to save the following chunk's embedding{chunk_input.id}")
+        raise SaveEmbeddingError(f"Failed to save the following chunk's embedding{Embedding.document_chunk_id}")

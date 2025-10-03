@@ -9,6 +9,7 @@ anyio==4.10.0
 asyncpg==0.30.0
 attrs==25.3.0
 banks==2.2.0
+bcrypt==5.0.0
 beautifulsoup4==4.13.5
 certifi==2025.8.3
 charset-normalizer==3.4.3

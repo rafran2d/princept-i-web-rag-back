@@ -1,4 +1,5 @@
 from App.Schema.DocumentSchema import DocumentRead
+from App.Schema.DocumentSchema import DocumentRead
 from App.Schema.DocumentChunkSchema import (ChunkCreate,ChunkRead)
 from App.Service.Chunk_service import(
     chunking,
@@ -26,4 +27,4 @@ async def chunking_management(document : DocumentRead) -> List[ChunkRead]:
         return chunk_output_list
     
     except (SaveChunkError,ChunkingError,UpdateDocumentStatusError) as e:
-        raise 
+        raise e

@@ -7,13 +7,13 @@ class RoleEnum(str,Enum):
     admin="admin"
     user='user'
 
-class UserCreate(BaseModel):
+class UserInput(BaseModel):
     email : EmailStr
     display_name : str
-    hashed_password : str
+    password : str
     role : RoleEnum = RoleEnum.user
 
-class UserRead(BaseModel):
+class UserOutput(BaseModel):
     id : uuid.UUID
     email : EmailStr
     display_name : str
