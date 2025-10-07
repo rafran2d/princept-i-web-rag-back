@@ -23,14 +23,14 @@ async def simple_embedding_process(chunk : ChunkRead) -> List[EmbeddingRead]:
             if attempt <= MAX_RETRIES:
                 await asyncio.sleep(2)            
             else:
-                raise e
+                raise 
             
 async def batch_embedding_process(chunks: List[ChunkRead]) :
     try:
-        for i in range(0,len(chunks,BATCH_SIZE)):
+        for i in range(0, len(chunks), BATCH_SIZE):
             batch = chunks[i:i + BATCH_SIZE]
             tasks = [simple_embedding_process(chunk) for chunk in batch]
             await asyncio.gather(*tasks, return_exceptions=True)
     except (SaveEmbeddingError,EmbeddingRead) as e:
-        raise e
+        raise 
     

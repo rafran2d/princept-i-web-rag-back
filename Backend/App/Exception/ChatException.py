@@ -8,3 +8,15 @@ class UpdateTiltleChatError(Exception):
 
 class DeleteChatError(Exception):
     pass
+    #raised when deleting chat encounter an error 
+
+class CreateTitleError(Exception):
+    pass
+    #raise when the creating title chat process encounter an error
+
+class ReadChatError(Exception):
+    pass
+    #raise when reading chat process encounter an error
+
+class IncrementError(Exception):
+    pass

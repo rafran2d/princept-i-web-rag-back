@@ -1,5 +1,4 @@
-from App.Schema.DocumentSchema import (DocumentCreate,DocumentRead)
-from pydantic import ValidationError
+from App.Schema.DocumentSchema import DocumentRead
 from typing import List
 import uuid
 from App.Service.Document_service import (
@@ -8,20 +7,15 @@ from App.Service.Document_service import (
     add_metadata_to_docs,
     create_document,
     charge_document_uploads_directory,
-    get_user_prototype
     )
-from App.Exception.IngestionException import (
-    SaveDocumentError,
-    UnsupportedFileTypeError,
-    AddMetadataError
-)
+
 from fastapi import UploadFile
 
 async def upload_documents(chatid : uuid.UUID,files : List[UploadFile]) -> List[DocumentRead]:
     try:
-        charge_document_uploads_directory(files)
-        documents = load_file_from_uploads()
         delete_file_from_uploads()
+        await charge_document_uploads_directory(files)
+        documents = load_file_from_uploads()
         documents_input =add_metadata_to_docs(documents,chatid)
         documents_output : List[DocumentRead] = []
         for doc in documents_input:
@@ -29,9 +23,7 @@ async def upload_documents(chatid : uuid.UUID,files : List[UploadFile]) -> List[
             documents_output.append(doc_obj_return)
         return documents_output
 
-    except (ValueError, UnsupportedFileTypeError, ValidationError,SyntaxError,TypeError) as e:
-        raise AddMetadataError(e) from e
-    
-    except SaveDocumentError as e:
-        raise e
+
+    except Exception as e:
+        raise 
 

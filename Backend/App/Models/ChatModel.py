@@ -1,8 +1,9 @@
 from ..database import Base
 from .ChatMessageModel import ChatMessageModel
 from .DocumentModel import DocumentModel
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey,Enum as PgEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from App.Schema.ChatSchema import statusenum
 import uuid
 import datetime
 
@@ -12,6 +13,8 @@ class ChatModel(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     title: Mapped[str] = mapped_column(nullable=True)
+    num_messages : Mapped[int] = mapped_column(default=0)
+    status: Mapped[statusenum] = mapped_column(PgEnum(statusenum, name="statusenum_chat"),default=statusenum.Usable)
     created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.utcnow)
     updated_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 

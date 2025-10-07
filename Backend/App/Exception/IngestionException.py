@@ -33,3 +33,4 @@ class SaveDocumentError(Exception):
 class AddMetadataError(Exception):
     #raised when Addig metadata to the documetn failed
     pass
+

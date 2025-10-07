@@ -22,7 +22,7 @@ async def chunking_management(document : DocumentRead) -> List[ChunkRead]:
         for chunk in input.chunks:
            new_chunk_output = await create_chunk(chunk)
            chunk_output_list.append(new_chunk_output)
-        set_chunked_document(input.id)
+        await set_chunked_document(input.id)
 
         return chunk_output_list
     

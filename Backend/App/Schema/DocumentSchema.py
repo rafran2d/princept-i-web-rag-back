@@ -12,6 +12,7 @@ class StatusEnum(str,Enum):
     failed = "failed"
 
 
+
 class DocumentCreate(BaseModel):
     chat_id : uuid.UUID 
     text : str

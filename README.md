@@ -33,6 +33,14 @@ Backend/
 ├── Migration/          # Alembic migration scripts
 └── requirements.txt    # Python dependencies
 ```
+```
+frontend/
+├── node_modules        # dependencies
+├── public              # static files, HTML, and assets
+├── src                 # react code
+├── package.json        # project definition and script
+├── package-lock.json   #exact version of dependencies
+```
 
 ## Data Models
 

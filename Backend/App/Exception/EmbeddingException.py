@@ -1,0 +1,2 @@
+class ReadEmbeddingError(Exception):
+    pass

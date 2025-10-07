@@ -1,0 +1,2 @@
+class ReadChunkError(Exception):
+    pass

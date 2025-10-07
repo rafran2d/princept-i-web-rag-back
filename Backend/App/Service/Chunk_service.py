@@ -4,15 +4,55 @@ from App.Models.DocumentChunkModel import DocumentChunkModel
 from App.Schema.DocumentChunkSchema import (ChunkCreate, ChunkRead)
 from App.Schema.DocumentSchema import (DocumentRead)
 from App.Exception.IngestionException import (ChunkingError, SaveChunkError)
+from App.Exception.ChunkException import ReadChunkError
 from App.database import AsyncSessionLocal
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import select
 from copy import deepcopy
+import uuid
 import re
 
 token_splitter = TokenTextSplitter(chunk_size=750, chunk_overlap=75)
 sentence_splitter = SentenceSplitter(chunk_size=1000)
 
+#__________CRUD___________ 
+
+async def create_chunk(chunk_input: ChunkCreate) -> ChunkRead:
+    try:
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                new_chunk = DocumentChunkModel(
+                    document_id=chunk_input.document_id,
+                    chunk_index=chunk_input.chunk_index,
+                    chunk_content=chunk_input.chunk_content,
+                    meta_data=chunk_input.meta_data
+                )
+                session.add(new_chunk)
+                await session.flush()
+                chunk_output = ChunkRead.from_orm(new_chunk)
+        return chunk_output
+    except SQLAlchemyError as e:
+        raise SaveChunkError(f"Failed to save the chunk. Original error: {e}") from e
+    except ValidationError as e:
+        raise SaveChunkError(f"Failed to save the chunk: {e}") from e
+
+
+async def read_chunk(embedding_chunk_id : uuid.UUID) -> ChunkRead:
+    try:
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                stmt = select(DocumentChunkModel).where(DocumentChunkModel == embedding_chunk_id)
+                response = await session.execute(stmt)
+                chunk_obj = response.scalars().firs()
+
+                return ChunkRead.from_orm(chunk_obj)
+            
+    except Exception as e :
+        raise  ReadChunkError(f"Failed to read chunk: {embedding_chunk_id}. Cause : {e}")
+
+ #___________other function_____________
+ #    
 def clean_text(text):
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
@@ -85,22 +125,3 @@ def chunking(document: DocumentRead) -> DocumentRead:
         return document
     except (ValidationError, SyntaxError, TypeError) as e:
         raise ChunkingError(f"Chunking failed for document {document.id}: {e}") from e
-
-async def create_chunk(chunk_input: ChunkCreate) -> ChunkRead:
-    try:
-        async with AsyncSessionLocal() as session:
-            async with session.begin():
-                new_chunk = DocumentChunkModel(
-                    document_id=chunk_input.document_id,
-                    chunk_index=chunk_input.chunk_index,
-                    chunk_content=chunk_input.chunk_content,
-                    meta_data=chunk_input.meta_data
-                )
-                session.add(new_chunk)
-                await session.flush()
-                chunk_output = ChunkRead.from_orm(new_chunk)
-        return chunk_output
-    except SQLAlchemyError as e:
-        raise SaveChunkError(f"Failed to save the chunk. Original error: {e}") from e
-    except ValidationError as e:
-        raise SaveChunkError(f"Failed to save the chunk: {e}") from e
