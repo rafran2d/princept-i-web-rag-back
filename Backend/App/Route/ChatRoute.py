@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, WebSocket, WebSo
 from App.Controller.DocumentChunkController import chunking_management as chunk_step
 from App.Controller.DocumentController import upload_documents as document_step
 from App.Exception.DocumentException import DocumentNumberError,NumberPageError
+from App.Schema.ChatRouteSchema import IngestionOutput,LoadConversationOutput
 from App.Schema.DocumentSchema import DocumentRead
 from App.Schema.DocumentChunkSchema import ChunkRead
 from App.Schema.ChatMessageSchema import MessageInput,MessageOutput
@@ -22,23 +23,23 @@ chat_route = APIRouter(
     tags=['chat']
 )
 
-@chat_route.get("{chat_id}/messages")
-async def load_conversation(chat_id : uuid.UUID) -> dict:
+@chat_route.get("{chat_id}/messages", response_model=LoadConversationOutput)
+async def load_conversation(chat_id : uuid.UUID) -> LoadConversationOutput:
     try:
         Messages : list[MessageOutput] = await Read_Message(chat_id)
         chats = await read_chat_list()
-        return{
-            "status_code" : 200,
-            "all_messages" : Messages,
-            "all_chat": chats,
-            "message" : "Conversation loaded"
-        }
+        return LoadConversationOutput(
+            status_code=200,
+            all_messages= Messages,
+            all_chatt=chats,
+            message="Conversation loaded successfuly"
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
          
 
-@chat_route.post("{chat_id}/documents", response_model=List[DocumentRead])
-async def document_ingestion(chat_id: uuid.UUID, files: List[UploadFile] = File(...)) -> Dict[str, Any]:
+@chat_route.post("{chat_id}/documents", response_model=IngestionOutput)
+async def document_ingestion(chat_id: uuid.UUID, files: List[UploadFile] = File(...)) -> IngestionOutput:
     try:
         await create_chat_prototype(chat_id)
         documents_output: List[DocumentRead] = await document_step(chat_id, files)
@@ -51,11 +52,11 @@ async def document_ingestion(chat_id: uuid.UUID, files: List[UploadFile] = File(
             await batch_embedding_process(chunk_list)
             await set_ready_document(document.id)
 
-        return {
-            "status_code": 200,
-            "data": documents_output,
-            "message": "Documents upload completed"
-        }
+        return IngestionOutput(
+            status_code= 200,
+            data = documents_output,
+            message = "Documents uploaded successfuly"
+        )
 
     except DocumentNumberError as e:
         print(e)
