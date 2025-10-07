@@ -23,7 +23,7 @@ share/python-wheels/
 MANIFEST
 
 #react ( See https://help.github.com/articles/ignoring-files/ for more about ignoring files.)
-/frontend/node_modules/  # <- corrigé pour ignorer le node_modules frontend
+/frontend/node_modules/ 
 /.pnp
 .pnp.js
 /coverage

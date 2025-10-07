@@ -1,14 +1,14 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, WebSocket, WebSocketDisconnect
 from App.Controller.DocumentChunkController import chunking_management as chunk_step
 from App.Controller.DocumentController import upload_documents as document_step
-from App.Exception.DocumentException import (DocumentNumberError,NumberPageError)
+from App.Exception.DocumentException import DocumentNumberError,NumberPageError
 from App.Schema.DocumentSchema import DocumentRead
 from App.Schema.DocumentChunkSchema import ChunkRead
-from App.Schema.ChatMessageSchema import MessageInput
+from App.Schema.ChatMessageSchema import MessageInput,MessageOutput
 from App.Schema.ChatSchema import statusenum
 from App.Service.Document_service import (set_ready_document,if_exist as exist_doc)
-from App.Service.ChatService import (create_chat_prototype,read_status_chat,increment_num_message)
-from App.Service.MessageService import Create_Message
+from App.Service.ChatService import create_chat_prototype,read_status_chat,increment_num_message,read_chat_list
+from App.Service.MessageService import Create_Message,Read_Message
 from App.Service.ModelRespons import generating_response
 from App.Controller.ChatController import chat_managing
 from App.Controller.EmbeddingController import batch_embedding_process 
@@ -22,6 +22,20 @@ chat_route = APIRouter(
     tags=['chat']
 )
 
+@chat_route.get("{chat_id}/messages")
+async def load_conversation(chat_id : uuid.UUID) -> dict:
+    try:
+        Messages : list[MessageOutput] = await Read_Message(chat_id)
+        chats = await read_chat_list()
+        return{
+            "status_code" : 200,
+            "all_messages" : Messages,
+            "all_chat": chats,
+            "message" : "Conversation loaded"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+         
 
 @chat_route.post("{chat_id}/documents", response_model=List[DocumentRead])
 async def document_ingestion(chat_id: uuid.UUID, files: List[UploadFile] = File(...)) -> Dict[str, Any]:

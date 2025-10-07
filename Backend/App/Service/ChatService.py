@@ -91,7 +91,19 @@ async def read_chat(chat_id : uuid.UUID)-> ChatOutput:
         return ChatOutput.from_orm(chat_obj)
     except Exception as e:
         raise ReadChatError(f"Failed to read chat{chat_id}. Cause :{e}")
-
+    
+async def read_chat_list() -> list[ChatOutput]:
+    try:
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                stmt = select(ChatModel).order_by(ChatModel.created_at).limit(100)
+                response = await session.execute(stmt)
+                chat_list = response.scalars().all()
+        
+        return [ChatOutput.from_orm(chat) for chat in chat_list]
+    
+    except Exception as e:
+        raise ReadChatError(f"Failed to read chats. Cause: {e}")
 #----------- other features ----------
 
 async def increment_num_message(chat_id : uuid.UUID):
