@@ -12,5 +12,5 @@ class IngestionOutput(BaseModel):
 class LoadConversationOutput(BaseModel):
     status_code : int
     all_messages : List[MessageOutput]
-    all_chatt : List[ChatOutput]
+    all_chat : List[ChatOutput]
     message : str

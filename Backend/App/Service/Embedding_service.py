@@ -12,7 +12,6 @@ from openai import AsyncOpenAI
 from sqlalchemy import text
 import uuid
 import tiktoken
-import asyncio
 import os
 from dotenv import load_dotenv
 load_dotenv()

@@ -23,8 +23,8 @@ class ChatOutput(BaseModel):
     status : statusenum
     created_at : datetime.datetime
     updated_at : datetime.datetime
-    documents : Optional[List[DocumentRead]] = None
-    messages : Optional[List[MessageOutput]] = None
+    document : Optional[List[DocumentRead]] = None
+    message : Optional[List[MessageOutput]] = None
     class Config:
         from_attributes = True
 
