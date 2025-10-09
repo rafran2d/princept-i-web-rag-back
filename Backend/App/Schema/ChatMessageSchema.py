@@ -14,15 +14,16 @@ class MessageInput(BaseModel):
     chat_id : uuid.UUID
     role : SenderEnum = SenderEnum.user
     content : str
-    sources : Optional[Dict[str,Any]] = None
+    sources : Optional[list] = None
 
 class MessageOutput(BaseModel):
     id : uuid.UUID
     chat_id : uuid.UUID
     role : SenderEnum
     content : str
-    sources : Optional[Dict[str,Any]] = None
+    sources : Optional[list] = None
     created_at : datetime.datetime
 
     class Config:
         from_attributes = True
+

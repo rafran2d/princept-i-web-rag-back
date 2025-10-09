@@ -160,7 +160,7 @@ async def increment_num_message(chat_id : uuid.UUID, limit_messages = 30) :
                 chat_obj.num_messages += 1 
 
                 if chat_obj.num_messages >= limit_messages :  # If more than the message limit, a chat changes its status into unusable
-                    chat_obj.status = statusenum.Unusable 
+                    chat_obj.status = statusenum.Unusable # set the chat frozen
                 await session.commit()
 
     except Exception as e :

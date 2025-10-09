@@ -38,18 +38,20 @@ async def create_chunk(chunk_input: ChunkCreate) -> ChunkRead:
         raise SaveChunkError(f"Failed to save the chunk: {e}") from e
 
 
-async def read_chunk(embedding_chunk_id : uuid.UUID) -> ChunkRead:
+async def read_chunk(chunk_ids : list[uuid.UUID]) -> list[ChunkRead]:
     try:
         async with AsyncSessionLocal() as session:
             async with session.begin():
-                stmt = select(DocumentChunkModel).where(DocumentChunkModel == embedding_chunk_id)
+                stmt = select(DocumentChunkModel).where(DocumentChunkModel.id.in_(chunk_ids))
                 response = await session.execute(stmt)
-                chunk_obj = response.scalars().firs()
+                chunk_list = response.scalars().all()
 
-                return ChunkRead.from_orm(chunk_obj)
+                return [
+                    ChunkRead.from_orm(chunk) for chunk in chunk_list
+                ]
             
     except Exception as e :
-        raise  ReadChunkError(f"Failed to read chunk: {embedding_chunk_id}. Cause : {e}")
+        raise  ReadChunkError(f"Failed to read chunks : Cause : {e}")
 
  #___________other function_____________
  #    

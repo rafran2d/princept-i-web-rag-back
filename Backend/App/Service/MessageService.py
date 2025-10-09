@@ -7,7 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 import uuid
 
 
-async def Create_Message(input : MessageInput) -> MessageOutput:
+async def Create_Message(input : MessageInput) -> MessageOutput :
     try:
         async with AsyncSessionLocal() as session:
             async with session.begin():
@@ -27,7 +27,7 @@ async def Create_Message(input : MessageInput) -> MessageOutput:
         
         raise MessageCreateError(f"Failed to save the message. Cause{e}")
         
-async def Read_Message(chat_id: uuid.UUID) -> list[MessageOutput]:
+async def Read_Message(chat_id: uuid.UUID) -> list[MessageOutput] :
     try:
         async with AsyncSessionLocal() as session:
             async with session.begin():

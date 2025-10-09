@@ -110,13 +110,14 @@ async def create_embedding(embeddings: list[EmbeddingCreate]) -> list[EmbeddingR
 
 
 
-async def read_embedding(vector: list[float], chat_id: uuid.UUID) -> list[EmbeddingRead] :
+async def read_embedding(vector: list[float], chat_id: uuid.UUID) -> list[EmbeddingRead]:
     """
-    Simple CRUD function.
+    Simple CRUD function that retrieves the closest embeddings for a given vector.
     """
-    try :
+    try:
         async with AsyncSessionLocal() as session:
-            async with session.begin() :
+            async with session.begin():
+                # SQL query using raw SQL for vector similarity
                 stmt = text("""
                     SELECT e.*
                     FROM embeddings e
@@ -124,14 +125,34 @@ async def read_embedding(vector: list[float], chat_id: uuid.UUID) -> list[Embedd
                     JOIN documents d ON dc.document_id = d.id
                     JOIN chats c ON d.chat_id = c.id
                     WHERE c.id = :chat_id
-                    ORDER BY e.vector <=> :vector
+                    ORDER BY e.vector <=> (:vector)::vector
                     LIMIT 100
                 """)
 
-                response = await session.execute(stmt, {"chat_id": str(chat_id), "vector": vector})
-                embeddings = response.scalars().all()
+                # Convert Python list into SQL-compatible pgvector format
+                vector_str = f"[{','.join(str(x) for x in vector)}]"
 
-        return [EmbeddingRead.from_orm(embedding) for embedding in embeddings]
+                response = await session.execute(
+                    stmt,
+                    {
+                        "chat_id": str(chat_id),
+                        "vector": vector_str  # Pass string instead of list
+                    }
+                )
 
-    except Exception as e : 
-        raise ReadEmbeddingError(f"Failed to retrieve data from the db: {e}")
+                # Get all results as RowMapping objects
+                embeddings = response.mappings().all()
+
+                # Convert RowMapping to dict and parse vector as list[float]
+                embeddings_list = []
+                for emb in embeddings:
+                    emb_dict = dict(emb)  # convert RowMapping to mutable dict
+                    if isinstance(emb_dict["vector"], str):
+                        emb_dict["vector"] = [float(x) for x in emb_dict["vector"].strip("[]").split(",")]
+                    embeddings_list.append(emb_dict)
+
+        # Return Pydantic models
+        return [EmbeddingRead(**embedding) for embedding in embeddings_list]
+
+    except Exception as e:
+        raise Exception(f"Failed to read embeddings: {e}")

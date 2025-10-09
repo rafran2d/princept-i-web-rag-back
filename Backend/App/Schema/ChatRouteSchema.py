@@ -1,4 +1,5 @@
 from App.Schema.ChatMessageSchema import MessageOutput
+from App.Schema.ChatMessageSchema import MessageOutput
 from App.Schema.ChatSchema import ChatOutput
 from pydantic import BaseModel
 from .DocumentSchema import DocumentRead
@@ -13,4 +14,12 @@ class LoadConversationOutput(BaseModel):
     status_code : int
     all_messages : List[MessageOutput]
     all_chat : List[ChatOutput]
+    message : str
+
+class MessageManagementOutput(BaseModel):
+    status_code : int 
+    response : MessageOutput
+    message : str
+
+class QuestionInput(BaseModel):
     message : str
