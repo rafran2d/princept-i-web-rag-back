@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from .ChatMessageSchema import MessageInput
 from .DocumentSchema import DocumentRead
 from .ChatMessageSchema import MessageOutput
 from typing import (Optional,List)

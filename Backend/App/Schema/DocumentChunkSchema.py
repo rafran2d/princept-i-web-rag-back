@@ -1,7 +1,5 @@
 from pydantic import BaseModel
 from typing import Dict,Any
-from .EmbeddingShcema import EmbeddingCreate
-from typing import Optional
 import uuid
 
 class ChunkCreate(BaseModel):

@@ -2,7 +2,7 @@ from App.Schema.ChatMessageSchema import MessageOutput
 from App.Schema.ChatSchema import ChatOutput
 from pydantic import BaseModel
 from .DocumentSchema import DocumentRead
-from typing import (Optional,List)
+from typing import List
 
 class IngestionOutput(BaseModel):
     status_code: int

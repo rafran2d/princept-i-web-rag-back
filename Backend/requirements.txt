@@ -6,12 +6,15 @@ aiosqlite==0.21.0
 alembic==1.16.5
 annotated-types==0.7.0
 anyio==4.10.0
+argon2-cffi==25.1.0
+argon2-cffi-bindings==25.1.0
 asyncpg==0.30.0
 attrs==25.3.0
 banks==2.2.0
 bcrypt==5.0.0
 beautifulsoup4==4.13.5
 certifi==2025.8.3
+cffi==2.0.0
 charset-normalizer==3.4.3
 click==8.2.1
 colorama==0.4.6
@@ -74,8 +77,10 @@ pillow==11.3.0
 platformdirs==4.4.0
 propcache==0.3.2
 psycopg2-binary==2.9.10
+pycparser==2.23
 pydantic==2.11.9
 pydantic_core==2.33.2
+PyJWT==2.10.1
 pypdf==6.0.0
 PyPDF2==3.0.1
 python-dateutil==2.9.0.post0
