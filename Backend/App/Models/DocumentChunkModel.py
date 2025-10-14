@@ -2,7 +2,9 @@ from ..database import Base
 from .EmbedingModel import EmbeddingModel
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from App.Schema.DocumentChunkSchema import ChunkStatus
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Enum as SQLEnum
 import uuid
 
 class DocumentChunkModel(Base):
@@ -12,6 +14,10 @@ class DocumentChunkModel(Base):
     document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("documents.id"), nullable=False)
     chunk_index: Mapped[int] = mapped_column(nullable=False)
     chunk_content: Mapped[str] = mapped_column(nullable=False)
+    state: Mapped[ChunkStatus] = mapped_column(
+    SQLEnum(ChunkStatus, name="ChunkStatus", create_type=False),  # <- name exact
+    default=ChunkStatus.pending
+)
     meta_data: Mapped[dict] = mapped_column(JSONB, nullable=True)
 
     # Relationships

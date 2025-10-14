@@ -106,18 +106,9 @@ princept-i-web-rag-back/
 │   ├── requirements.txt         # Python dependencies
 │   ├── alembic.ini             # Alembic configuration
 │   └── venv/                    # Virtual environment (not in git)
-├── frontend/                    # React frontend (WIP)
-│   ├── public/                  # Static files
-│   ├── src/                     # React source code
-│   ├── package.json             # Node dependencies
-│   └── package-lock.json        # Locked versions
-├── .env                         # Environment variables (not in git)
-├── .env.example                 # Environment variables template
-├── .gitignore                   # Git ignore rules
-└── README.md                    # This file
-```
 
----
+
+```
 
 ## Prerequisites
 
@@ -357,7 +348,7 @@ Once the application is running, you can access:
 #### Chat Management
 - `POST /chat/{chat_id}/documents` - Upload documents to a chat
 - `GET /chat/{chat_id}/messages` - Get conversation messages
-- `WebSocket /chat/{chat_id}/messages` - Real-time chat connection
+- `POST /chat/{chat_id}/messages` -Send message
 
 #### Health Check
 - `GET /` - API health status

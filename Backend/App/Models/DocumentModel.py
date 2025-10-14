@@ -14,8 +14,9 @@ class DocumentModel(Base):
     chat_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("chats.id"), nullable=False)
     title: Mapped[str] = mapped_column(nullable=True)
     text: Mapped[str] = mapped_column(nullable=True)
-    status : Mapped[StatusEnum] = mapped_column(default = StatusEnum.uploaded)
+    status : Mapped[StatusEnum] = mapped_column(default = StatusEnum.pending)
     meta_data: Mapped[dict] = mapped_column(JSONB, nullable=True)
+    hash_key: Mapped[bytes] = mapped_column(nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.utcnow)
 
     # Relationships

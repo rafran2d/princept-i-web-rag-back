@@ -1,125 +1,178 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from App.Controller.DocumentChunkController import chunking_management as chunk_step
-from App.Controller.DocumentController import upload_documents as document_step
-from App.Exception.DocumentException import DocumentNumberError,NumberPageError
-from App.Schema.ChatRouteSchema import QuestionInput,IngestionOutput,LoadConversationOutput,MessageManagementOutput
+from App.Controller.DocumentController import if_already_uploade,upload_documents as document_step
+from App.Exception.EmbeddingException import EmbeddingStepError
+from App.Exception.ChunkException import ChunkStepError
+from App.Exception.DocumentException import DocumentNumberError, NumberPageError
+from App.Schema.ChatRouteSchema import QuestionInput, IngestionOutput, LoadConversationOutput, MessageManagementOutput
 from App.Service.LLMOperationSerivice import generating_response
 from App.Schema.DocumentSchema import DocumentRead
 from App.Schema.DocumentChunkSchema import ChunkRead
-from App.Schema.ChatMessageSchema import MessageOutput,MessageInput,SenderEnum
+from App.Schema.ChatMessageSchema import MessageOutput, MessageInput, SenderEnum
 from App.Schema.ChatSchema import statusenum
-from App.Service.Document_service import set_ready_document
-from App.Service.ChatService import create_chat_prototype, read_chat_list,read_status_chat,increment_num_message
-from App.Service.MessageService import Read_Message,Create_Message
+from App.Service.ChatService import create_chat_prototype, read_chat_list, read_status_chat, increment_num_message,if_exist
+from App.Service.States.DocumentContext import DocumentContext
+from App.Service.States.FailedState import FailedState
+from App.Service.MessageService import Read_Message, Create_Message
 from App.Controller.EmbeddingController import batch_embedding_process
-from typing import List,Optional
+from fastapi import APIRouter, HTTPException, UploadFile, File, Query
+from typing import List, Optional
 from pydantic import ValidationError
 from datetime import datetime
 import traceback
 import uuid
 
 chat_route = APIRouter(
-    prefix = "/chat",
+    prefix="/chat",
     tags=['chat']
 )
 
+
 @chat_route.get("/{chat_id}/messages", response_model=LoadConversationOutput)
-async def load_conversation(chat_id : uuid.UUID,offset : Optional[datetime] = Query(None,desciption ="Getter to the offset as a Query params")) -> LoadConversationOutput : 
+async def load_conversation(chat_id: uuid.UUID, offset: Optional[datetime] = Query(None, desciption="Getter to the offset as a Query params")) -> LoadConversationOutput :
     """
-        This function returns two lists : messages list from the chat wiht the chat_id above and list of all the all the chat stored in the database.
+    Load all messages from a specific chat and list all chats in the database.
+
+    Steps:
+    1. Retrieve all messages for the chat identified by chat_id.
+    2. Retrieve all chats with optional pagination using offset.
+
+    Parameters:
+    - chat_id (uuid.UUID): Unique identifier of the chat to load messages from.
+    - offset (datetime, optional): Pagination offset for listing chats.
+
+    Returns:
+    - LoadConversationOutput: Contains all messages for the chat, list of all chats, status code, and message.
+
+    Raises:
+    - HTTPException 500: If any unexpected error occurs while fetching messages or chat list.
     """
     try :
-        Messages : list[MessageOutput] = await Read_Message(chat_id)#list of all the messages
-        chats = await read_chat_list(offset)#lst of all chats using pagination
+        Messages: list[MessageOutput] = await Read_Message(chat_id)
+        chats = await read_chat_list(offset)
         return LoadConversationOutput(
             status_code=200,
-            all_messages= Messages,
+            all_messages=Messages,
             all_chat=chats,
-            message="Conversation loaded successfuly"
+            message="Conversation loaded successfully"
         )
-    except Exception as e : 
+    except Exception as e :
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@chat_route.post("/{chat_id}/messages",response_model= MessageManagementOutput|dict)
-async def message_managing(chat_id : uuid.UUID,payload : QuestionInput):
+@chat_route.post("/{chat_id}/messages", response_model=MessageManagementOutput | dict)
+async def message_managing(chat_id: uuid.UUID, payload: QuestionInput) :
     """
-    This function manages the information exchange
+    Handle the exchange of messages for a chat.
+
+    Steps:
+    1. Check if the chat is usable.
+    2. Increment the chat's message count.
+    3. Save the user's message to the database.
+    4. Generate a response from the LLM.
+    5. Save the LLM's response along with sources in the database.
+
+    Parameters:
+    - chat_id (uuid.UUID): Unique identifier of the chat.
+    - payload (QuestionInput): The user's question message.
+
+    Returns:
+    - MessageManagementOutput: Contains the LLM's response, status code, and message.
+
+    Raises:
+    - HTTPException 403: If the chat is not usable or validation fails.
     """
     question = payload.message
     try :
-        if await read_status_chat(chat_id) == statusenum.Usable:
-            
-            await increment_num_message(chat_id)#Increment the chat's message number
+        if await read_status_chat(chat_id) == statusenum.Usable :
+
+            await increment_num_message(chat_id)
             question_input = MessageInput(
                 chat_id=chat_id,
-                role = SenderEnum.user,
-                content = question,
+                role=SenderEnum.user,
+                content=question,
             )
 
-            await Create_Message(question_input)#save the message in the db
-            response,sources = await generating_response(question,chat_id)#send the message to the llm for it to answer
+            await Create_Message(question_input)
+            response, sources = await generating_response(question, chat_id)
 
             message_input = MessageInput(
-                chat_id = chat_id,
-                role = SenderEnum.LLM,
-                content = response,
-                sources = sources
+                chat_id=chat_id,
+                role=SenderEnum.LLM,
+                content=response,
+                sources=sources
             )
 
-            message_output = await Create_Message(message_input)# save the llm's answer in the db
+            message_output = await Create_Message(message_input)
 
             return MessageManagementOutput(
-                status_code = 200,
-                response= message_output,
-                message= "Anwswer generated successfuly"
+                status_code=200,
+                response=message_output,
+                message="Answer generated successfully"
             )
-        else:
-            return {
-                "error" : "The chat is no longer usable"
-            }
-        
-    except ValidationError as e :       
-        raise HTTPException(status_code= 403, detail=f"The Chat is not longer usable : {e}")
 
-        
-    except Exception as e :
-        raise HTTPException(status_code= 403, detail=f"The Chat is not longer usable{e}")
-
+    except (ValidationError,Exception) as e :
+        raise HTTPException(status_code=403, detail=f"The Chat is no longer usable: {e}")
 
 
 @chat_route.post("/{chat_id}/documents", response_model=IngestionOutput)
-async def document_ingestion(chat_id: uuid.UUID, files: List[UploadFile] = File(...),document_limit = 3)  :
+async def document_ingestion(chat_id: uuid.UUID, files: List[UploadFile] = File(...)) :
     """
-    This function handles all the necessary processes for a document to get embeddings saved in the database.
+    Handle document ingestion and embedding for a chat.
+
+    Steps:
+    1. Validate the number of uploaded documents does not exceed document_limit.
+    2. Create a chat prototype if it doesn't exist.
+    3. Manage documents.(check if any of the file is already store in the db so no need to upload it again)
+    6. Upload documents and store metadata in the database.
+    5. Split each document into chunks and store them in the database.
+    7. Generate embeddings for each chunk and store them in the database.
+
+    Parameters:
+    - chat_id (uuid.UUID): Unique identifier of the chat.
+    - files (List[UploadFile]): List of documents to upload.
+
+    Returns:
+    - IngestionOutput: Contains status code, uploaded documents data, and a success message.
+
+    Raises:
+    - HTTPException 400: If the number of documents exceeds the limit or page number exceeds 150.
+    - HTTPException 500: If any unexpected server error occurs during ingestion.
     """
+    document_limit: int = 3
     try:
-        await create_chat_prototype(chat_id)
-        documents_output: List[DocumentRead] = await document_step(chat_id, files)  # Add metadata and store each doc into the db
-
-        if len(documents_output) > document_limit:#The list should not contain more than 3 documents 
+        if len(files) > document_limit :
             raise DocumentNumberError(f"Only {document_limit} documents can be used")
+        
+        if not await if_exist(chat_id) :
+            await create_chat_prototype(chat_id)
 
-        for document in documents_output:
-            chunk_list: List[ChunkRead] = await chunk_step(document)  # Split the documents into chunks and store them in the db
-            await batch_embedding_process(chunk_list)  # Generate embeddings for each chunk and store them also
-            await set_ready_document(document.id)  # Change the document's status
+        new_files_list : List[UploadFile] = await if_already_uploade(files,chat_id)
+        
+        documents_output: List[DocumentRead] = await document_step(chat_id, new_files_list)
+        docs_state = [DocumentContext(doc.id) for doc in documents_output]
+
+        for document, state in zip(documents_output, docs_state):
+            try:
+                if not isinstance(state.state, FailedState):
+                    chunk_list: List[ChunkRead] = await chunk_step(document)
+                    state.involve()
+                    await batch_embedding_process(chunk_list)
+            except (ChunkStepError, EmbeddingStepError) as e:
+                state.fail()
+                print(f"Error processing document {document.id}: {e}")
+                raise HTTPException(status_code=400, detail=str(e))
+                # On continue avec les autres documents
 
         return IngestionOutput(
             status_code=200,
             data=documents_output,
-            message="Documents uploaded successfully"
+            message="Documents processed (some may have failed)"
         )
 
-    except DocumentNumberError as e:
+    except (DocumentNumberError, NumberPageError) as e :
         print(e)
         raise HTTPException(status_code=400, detail=str(e))
 
-    except NumberPageError as e:
-        print(e)
-        raise HTTPException(status_code=400, detail="Document's page number exceeds 150 pages")
-
-    except Exception as e:
+    except Exception as e :
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
-

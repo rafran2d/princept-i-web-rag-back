@@ -23,7 +23,7 @@ Instruction for using the provided documents and metadata
 - Use more information from items with higher contextual relevance and less from lower-ranked items.
 
 2. Data presence check
-- If the topic of the question does not match the content of the provided data, respond: 
+- If the topic of the question does not match the content of the provided data, respond in the same language as the question: 
   'The submitted documents do not contain information about the topic mentioned in the question.'
 - Do not fabricate, guess, or infer answers when the needed information is absent.
 
@@ -76,23 +76,52 @@ Instruction for using the provided documents and metadata
 - Never invent facts or attribute unsupported claims to the sources.
 """
 
-async def chunk_embedding(question : str) -> list[float]:
-    try:
+async def chunk_embedding(question : str) -> list[float] :
+    """
+    Generate an embedding vector for a given question using OpenAI's embeddings API.
+
+    Args:
+        question (str): The question text to embed.
+
+    Returns:
+        list[float]: Embedding vector representing the question.
+    
+    Raises:
+        Exception: If the embedding generation fails.
+    """
+    try :
         json_response = await client.embeddings.create(model="text-embedding-3-small",input=question)
         vector = json_response.data[0].embedding
         
         return vector
     
-    except Exception as e:
+    except Exception as e :
         raise
-
 
 
 async def generating_response(question: str, chat_id: uuid.UUID) -> str :
     """
-        Get the LLM to generate answer for the user's question
+    Generate a response from the LLM based on the user's question and relevant document chunks.
+
+    Steps:
+    1. Generate embedding for the question.
+    2. Retrieve relevant embeddings from the database.
+    3. Fetch corresponding document chunks.
+    4. Compile input with prompt, instructions, data, and sources.
+    5. Call LLM to generate the response.
+
+    Args:
+        question (str): The user's question.
+        chat_id (uuid.UUID): The chat session identifier to fetch relevant embeddings.
+
+    Returns:
+        str: Generated response from the LLM.
+        list[str]: List of document sources used to answer the question.
+
+    Raises:
+        Exception: If an error occurs during the response generation process.
     """
-    try:
+    try :
         datas = []
         sources = []
         question_vector = await chunk_embedding(question)#Generate embedding for the question
@@ -125,5 +154,5 @@ async def generating_response(question: str, chat_id: uuid.UUID) -> str :
 
         return response.output_text, sources
 
-    except Exception as e:
+    except Exception as e :
         raise Exception(f"Error during the response generation process: {e}")
