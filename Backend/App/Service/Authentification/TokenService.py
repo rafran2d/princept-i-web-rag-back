@@ -124,25 +124,18 @@ async def create_refresh_token(token: RefreshTokenInput) -> RefreshTokenOutput:
         raise CreateTokenError(f"Failed to create the token. Original Error {e}")
 
 
-async def read_refresh_token_last() -> RefreshTokenOutput:
-    """
-    Retrieve the most recently created refresh token from the database.
 
-    Returns:
-        RefreshTokenOutput: The latest refresh token record.
 
-    Raises:
-        ReadTokenError: If an error occurs while reading the token.
-    """
+async def read_refresh_token(hashed_token : str)->RefreshTokenOutput:
     try:
         async with AsyncSessionLocal() as session:
             async with session.begin():
-                stmt = select(RefreshTokenModel).order_by(RefreshTokenModel.created_at.desc()).limit(1)
+                stmt = select(RefreshTokenModel).where(RefreshTokenModel.hashed_token == hashed_token)
                 response = await session.execute(stmt)
-                token_obj = response.scalars().first()
-                
-        return RefreshTokenOutput.from_orm(token_obj)
-    
+                token_obj = response.scalars().first() 
+
+        return RefreshTokenOutput.from_orm(token_obj)       
+
     except (SQLAlchemyError, Exception) as e:
         raise ReadTokenError(f"Failed to read the token. Original Error: {e}")
 

@@ -1,15 +1,17 @@
 from App.Service.UserService import (
     create_user,
     compare_passwd,
-    read_user_id
+    read_user_id,
+    set_rejected,
+    set_approved
 )
 from App.Service.Authentification.TokenService import (
     generate_access_token,
     generate_refresh_token,
     create_refresh_token,
-    read_refresh_token_last,
     hash_token,
-    set_revoked_token
+    set_revoked_token,
+    read_refresh_token
 )
 from App.Schema.UserShcema import UserOutput,UserInput
 from App.Schema.RefreshTokenSchema import RefreshTokenInput
@@ -28,6 +30,7 @@ from fastapi import APIRouter,HTTPException,Request
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 import os
+import uuid
 
 load_dotenv()
 
@@ -73,6 +76,73 @@ async def sign_up(User : UserInput) :
     except Exception as e:
         raise HTTPException(status_code=500,detail=str(type(e))+": "+ str(e))
     
+
+@auth_route.post("/approve/{user_id}")
+async def approve_user(user_id: uuid.UUID):
+    """
+    Approve a user by setting their status to 'approved'.
+
+    This endpoint is typically used by an admin to approve a user's registration.
+    The user's status is updated in the database. 
+
+    Args:
+        user_id (uuid.UUID): The unique identifier of the user to approve.
+
+    Returns:
+        JSONResponse: A JSON message confirming the successful update.
+
+    Raises:
+        HTTPException 404: If the user with the given ID does not exist.
+        HTTPException 500: If any other error occurs during the update process.
+    """
+    try:
+        await set_approved(user_id)
+        return JSONResponse(
+            status_code=200,
+            content={"message": "Update successful"}
+        )
+    except UserNotFoundError as e:
+        print(type(e))
+        print(e)
+        raise HTTPException(status_code=404, detail=str(type(e)) + ": " + str(e))
+    except Exception as e:
+        print(type(e))
+        print(e)
+        raise HTTPException(status_code=500, detail=str(type(e)) + ": " + str(e))
+
+
+@auth_route.post("/rejected/{user_id}")
+async def reject_user(user_id: uuid.UUID):
+    """
+    Reject a user by setting their status to 'rejected'.
+
+    This endpoint is typically used by an admin to reject a user's registration.
+    The user's status is updated in the database.
+
+    Args:
+        user_id (uuid.UUID): The unique identifier of the user to reject.
+
+    Returns:
+        JSONResponse: A JSON message confirming the successful update.
+
+    Raises:
+        HTTPException 404: If the user with the given ID does not exist.
+        HTTPException 500: If any other error occurs during the update process.
+    """
+    try:
+        await set_rejected(user_id)
+        return JSONResponse(
+            status_code=200,
+            content={"message": "Update successful"}
+        )
+    except UserNotFoundError as e:
+        print(type(e))
+        print(e)
+        raise HTTPException(status_code=404, detail=str(type(e)) + ": " + str(e))
+    except Exception as e:
+        print(type(e))
+        print(e)
+        raise HTTPException(status_code=500, detail=str(type(e)) + ": " + str(e))
 
 @auth_route.post("/login")
 async def login(User : UserInput) :
@@ -139,7 +209,7 @@ async def login(User : UserInput) :
 
 
 @auth_route.patch("/logout")
-async def revoked_refresh_token() :
+async def revoked_refresh_token(request : Request) :
     """
     Handle user logout by revoking the refresh token.
 
@@ -156,7 +226,9 @@ async def revoked_refresh_token() :
         HTTPException: If an unexpected error occurs during the logout process.
     """
     try :
-        refresh_token_obj = await read_refresh_token_last()
+        refresh_token = request.cookies.get("refresh_token")
+        hashed_token = hash_token(refresh_token)
+        refresh_token_obj = await read_refresh_token(hashed_token)
         await set_revoked_token(refresh_token_obj.id)
 
         response = JSONResponse(status_code=200,content={"detail" : "log out sucessful"})
@@ -170,7 +242,7 @@ async def revoked_refresh_token() :
         raise HTTPException(status_code=500,detail=str(type(e))+": "+ str(e))
 
 
-@auth_route.head('/refresh')
+@auth_route.post('/refresh')
 async def refesh_access_token(request : Request) :
     """
     Refresh the user's access token.
@@ -192,9 +264,10 @@ async def refesh_access_token(request : Request) :
 
         if not refresh_token :
             raise TokenNotFoundError("No refresh token was  saved in the cookie")
+        
+        hashed_token = hash_token(refresh_token)        
+        refresh_token_obj = await read_refresh_token(hashed_token)
 
-        refresh_token_obj = await read_refresh_token_last()
-        hashed_token = hash_token(refresh_token)
 
         await set_revoked_token(refresh_token_obj.id)
 

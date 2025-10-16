@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey,Index
 from App.database import Base
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -13,6 +13,11 @@ REFRESH_TOKEN_EXPIRES_AT  = int(os.getenv("REFRESH_TOKEN_EXPIRES_DAYS"))
 
 class RefreshTokenModel(Base):
     __tablename__ ="refresh_tokens"
+
+    __table_args__ = (
+        Index("idx_hashed_token", "hashed_token"),  # <-- index sur hashed_token
+    )
+
     
     id: Mapped[uuid.UUID] = mapped_column(default=uuid.uuid4,primary_key=True)
     user_id: Mapped[uuid.uuid4] = mapped_column(ForeignKey("users.id"),nullable=False) 

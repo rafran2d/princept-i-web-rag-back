@@ -9,7 +9,7 @@ from App.Exception.UserException import (
     EmailStructError
 )
 from App.Models.UserModel import UserModel as Model
-from App.Schema.UserShcema import UserInput, UserOutput,UserInternalOutput
+from App.Schema.UserShcema import UserInput, UserOutput,UserInternalOutput, statususer
 from App.database import AsyncSessionLocal
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -241,3 +241,61 @@ async def if_email_exist(email : EmailStr) -> bool :
     
     except Exception as e :
         raise e
+    
+async def set_approved(user_id: uuid.UUID) :
+    """
+    Set the status of a user to 'approved'.
+
+    This function updates the user's status in the database to indicate
+    that the admin has approved the account.
+
+    Args:
+        user_id (uuid.UUID): The unique identifier of the user to approve.
+
+    Raises:
+        Exception: If updating the user's status fails.
+    """
+    try:
+        async with AsyncSessionLocal() as session :
+            async with session.begin() :
+                stmt = select(Model).where(Model.id == user_id)
+                response = await session.execute(stmt)
+                user_obj = response.scalars().first()
+
+                if user_obj is None :
+                    raise UserNotFoundError(f"User with id {user_id} not found")
+
+                user_obj.status = statususer.approved
+
+    except (SQLAlchemyError, Exception) as e :
+        raise Exception(f"Failed to update the status of the user {user_id}. Original error: {e}")
+
+
+async def set_rejected(user_id: uuid.UUID) :
+    """
+    Set the status of a user to 'rejected'.
+
+    This function updates the user's status in the database to indicate
+    that the admin has rejected the account.
+
+    Args:
+        user_id (uuid.UUID): The unique identifier of the user to reject.
+
+    Raises:
+        Exception: If updating the user's status fails.
+    """
+    try  :
+        async with AsyncSessionLocal() as session :
+            async with session.begin() :
+                stmt = select(Model).where(Model.id == user_id)
+                response = await session.execute(stmt)
+                user_obj = response.scalars().first()
+
+                if user_obj is None :
+                    raise UserNotFoundError(f"User with id {user_id} not found")
+
+                user_obj.status = statususer.rejected
+
+    except (SQLAlchemyError, Exception) as e :
+        raise Exception(f"Failed to update the status of the user {user_id}. Original error: {e}")
+
