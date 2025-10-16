@@ -37,4 +37,4 @@ async def chunking_management(document : DocumentRead) -> List[ChunkRead] :
         return chunk_output_list
     
     except Exception as e :
-        raise ChunkStepError(f"Error encountered during the chunk step process. Orirginal error {e}")
+        raise ChunkStepError(f"Error encountered during the chunk step process. Original error: {e}")

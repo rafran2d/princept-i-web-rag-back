@@ -52,7 +52,7 @@ async def upload_documents(chatid : uuid.UUID, files : List[UploadFile]) -> List
         raise 
 
     
-async def if_already_uploade(files: List[UploadFile], chat_id: uuid.UUID) -> List[UploadFile] :
+async def if_already_uploaded(files: List[UploadFile], chat_id: uuid.UUID) -> List[UploadFile] :
     """
     Check which files have already been uploaded and delete those whose status is not ready.
 

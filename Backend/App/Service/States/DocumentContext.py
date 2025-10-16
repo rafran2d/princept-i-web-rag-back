@@ -5,12 +5,12 @@ class DocumentContext():
     def __init__(self,id):
         self.id = id
         self.state =  PendingState(self)
-    
-    def involve(self):
-        self.state.involve(self)
 
-    def fail (self):
-        self.state.fail(self)
+    async def involve(self):
+        await self.state.involve(self)
 
-    def retry(self):
-        self.prevstate.retry(self)
+    async def fail (self):
+        await self.state.fail(self)
+
+    async def retry(self):
+        await self.prevstate.retry(self)

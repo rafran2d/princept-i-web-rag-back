@@ -30,5 +30,5 @@ async def batch_embedding_process(chunks: List[ChunkRead]) -> list[EmbeddingRead
 
         return embedding_output_list
     
-    except Exception as e: 
-        raise EmbeddingStepError(f"Error encountered during the embedding process. Original error {e} ")
+    except Exception as e:
+        raise EmbeddingStepError(f"Error encountered during the embedding process. Original error: {e}")

@@ -24,6 +24,7 @@ import asyncio
 load_dotenv()
 
 client = AsyncOpenAI(api_key=os.getenv("API_KEY"))
+EMBEDDING_SEMAPHORE = asyncio.Semaphore(5)
 
 def get_token_number(chunk : ChunkRead,encod = "cl100k_base") -> int :
     """
@@ -40,35 +41,35 @@ def get_token_number(chunk : ChunkRead,encod = "cl100k_base") -> int :
     return len(encoding.encode(chunk.chunk_content))
 
 
-async def process_batch(batch: list[ChunkRead], semaphore = asyncio.Semaphore(5) ) -> list[EmbeddingCreate] | None :
-    """
-    Generate embeddings for a batch of document chunks using OpenAI API.
+async def process_batch(batch: list[ChunkRead], semaphore: asyncio.Semaphore = EMBEDDING_SEMAPHORE, max_retries: int = 3) -> list[EmbeddingCreate]:
+    from App.Exception.IngestionException import EmbeddingError
 
-    Args:
-        batch (list[ChunkRead]): List of document chunks to embed.
-        semaphore (asyncio.Semaphore): Semaphore to limit parallel API calls.
+    async with semaphore:
+        for attempt in range(max_retries):
+            try:
+                response = await client.embeddings.create(
+                    model="text-embedding-3-small",
+                    input=[chunk.chunk_content for chunk in batch]
+                )
+                return [
+                    EmbeddingCreate(document_chunk_id=chunk.id, vector=item.embedding)
+                    for chunk, item in zip(batch, response.data)
+                ]
+            except RateLimitError as e:
+                wait_time = 2 ** attempt
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(wait_time)
+                else:
+                    raise EmbeddingError(f"Rate limit exceeded after {max_retries} attempts: {e}")
+            except (APITimeoutError, APIConnectionError) as e:
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(1)
+                else:
+                    raise EmbeddingError(f"Connection error after {max_retries} attempts: {e}")
+            except APIError as e:
+                raise EmbeddingError(f"OpenAI API error: {e}")
 
-    Returns:
-        list[EmbeddingCreate] | None: List of embeddings for each chunk in the batch.
-    """
-    async with semaphore :#limit the numbre of task that can be run in parallel
-        try :
-            response = await client.embeddings.create(
-                model="text-embedding-3-small",
-                input=[chunk.chunk_content for chunk in batch]
-            )
-            # for chunk in batch:
-            #     chunk.status = Statuschunk.success  # state tracking
-            return [
-                EmbeddingCreate(document_chunk_id=chunk.id, vector=item.embedding)
-                for chunk, item in zip(batch, response.data)
-            ]
-        except (APIError, APITimeoutError, APIConnectionError, RateLimitError) :
-            pass
-            # for chunk in batch:
-            #     chunk.status = Statuschunk.failed  # state tracking
-        except Exception :
-            raise Exception
+        raise EmbeddingError(f"Failed to process batch after {max_retries} attempts")
 
 async def batch_embedding_openai(chunks: list[ChunkRead], token_limit=8190) :
     """
@@ -98,12 +99,25 @@ async def batch_embedding_openai(chunks: list[ChunkRead], token_limit=8190) :
         if batch :
             batches.append(batch)
 
-        # Run task in parallel with gather
         tasks = [process_batch(batch) for batch in batches]
-        results = await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # flatten
-        embeddingcreate_list = [e for result in results for e in result]#take each EmbeddingCreate in each list in the results one by one
+        embeddingcreate_list = []
+        failed_batches = 0
+
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                failed_batches += 1
+                print(f"Batch {i} failed: {result}")
+            else:
+                embeddingcreate_list.extend(result)
+
+        if failed_batches > 0:
+            print(f"Warning: {failed_batches}/{len(batches)} batches failed")
+
+        if not embeddingcreate_list:
+            from App.Exception.IngestionException import EmbeddingError
+            raise EmbeddingError(f"All {len(batches)} batches failed")
 
         return embeddingcreate_list
     

@@ -1,5 +1,5 @@
 from App.Controller.DocumentChunkController import chunking_management as chunk_step
-from App.Controller.DocumentController import if_already_uploade,upload_documents as document_step
+from App.Controller.DocumentController import if_already_uploaded,upload_documents as document_step
 from App.Exception.EmbeddingException import EmbeddingStepError
 from App.Exception.ChunkException import ChunkStepError
 from App.Exception.DocumentException import DocumentNumberError, NumberPageError
@@ -28,7 +28,7 @@ chat_route = APIRouter(
 
 
 @chat_route.get("/{chat_id}/messages", response_model=LoadConversationOutput)
-async def load_conversation(chat_id: uuid.UUID, offset: Optional[datetime] = Query(None, desciption="Getter to the offset as a Query params")) -> LoadConversationOutput :
+async def load_conversation(chat_id: uuid.UUID, offset: Optional[datetime] = Query(None, description="Timestamp for pagination offset")) -> LoadConversationOutput :
     """
     Load all messages from a specific chat and list all chats in the database.
 
@@ -146,7 +146,7 @@ async def document_ingestion(chat_id: uuid.UUID, files: List[UploadFile] = File(
         if not await if_exist(chat_id) :
             await create_chat_prototype(chat_id)
 
-        new_files_list : List[UploadFile] = await if_already_uploade(files,chat_id)
+        new_files_list : List[UploadFile] = await if_already_uploaded(files,chat_id)
         
         documents_output: List[DocumentRead] = await document_step(chat_id, new_files_list)
         docs_state = [DocumentContext(doc.id) for doc in documents_output]
@@ -155,13 +155,13 @@ async def document_ingestion(chat_id: uuid.UUID, files: List[UploadFile] = File(
             try:
                 if not isinstance(state.state, FailedState):
                     chunk_list: List[ChunkRead] = await chunk_step(document)
-                    state.involve()
+                    await state.involve()
                     await batch_embedding_process(chunk_list)
+                    await state.involve()
             except (ChunkStepError, EmbeddingStepError) as e:
-                state.fail()
+                await state.fail()
                 print(f"Error processing document {document.id}: {e}")
                 raise HTTPException(status_code=400, detail=str(e))
-                # On continue avec les autres documents
 
         return IngestionOutput(
             status_code=200,

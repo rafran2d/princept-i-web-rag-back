@@ -17,16 +17,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade():
-    # Créer directement le nouveau type (sans renommer l'ancien)
-    new_status_enum = sa.Enum('chunked', 'ready', 'failed', 'pending', name='statusenum')
-    new_status_enum.create(op.get_bind(), checkfirst=False)
-
-    # Modifier la colonne (si elle existe)
-    op.execute("""
-        ALTER TABLE documents
-        ALTER COLUMN status TYPE statusenum
-        USING status::text::statusenum;
-    """)
+    # Add new values to existing enum instead of recreating it
+    op.execute("ALTER TYPE statusenum ADD VALUE IF NOT EXISTS 'pending'")
+    op.execute("ALTER TYPE statusenum ADD VALUE IF NOT EXISTS 'charged'")
 
 
 def downgrade():
