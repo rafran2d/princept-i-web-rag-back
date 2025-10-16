@@ -1,5 +1,6 @@
 from pydantic import BaseModel,EmailStr
 from enum import Enum
+from typing import Optional
 import uuid
 import datetime
 
@@ -7,17 +8,36 @@ class RoleEnum(str,Enum):
     admin="admin"
     user='user'
 
+class statususer(str,Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
+
 class UserInput(BaseModel):
     email : EmailStr
-    display_name : str
+    display_name : str = None
     password : str
-    role : RoleEnum = RoleEnum.user
+    role : Optional[RoleEnum] = RoleEnum.user
+
+class UserInternalOutput(BaseModel):
+    id : uuid.UUID
+    email : EmailStr
+    display_name : str
+    role : RoleEnum
+    status : statususer 
+    hashed_password : str  
+    created_at : datetime.datetime
+
+    class Config:
+        from_attributes = True
 
 class UserOutput(BaseModel):
     id : uuid.UUID
     email : EmailStr
     display_name : str
     role : RoleEnum
+    status : statususer   
     created_at : datetime.datetime
 
     class Config:
