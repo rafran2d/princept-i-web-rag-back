@@ -15,8 +15,8 @@ class ChatModel(Base):
     title: Mapped[str] = mapped_column(nullable=True)
     num_messages : Mapped[int] = mapped_column(default=0)
     status: Mapped[statusenum] = mapped_column(PgEnum(statusenum, name="statusenum_chat"),default=statusenum.Usable)
-    created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.utcnow)
-    updated_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.now)
+    updated_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.now, onupdate=datetime.datetime.utcnow)
 
     # Relationships
     message: Mapped[list[ChatMessageModel]] = relationship("ChatMessageModel", backref="chat", cascade="all, delete-orphan")

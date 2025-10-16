@@ -13,7 +13,7 @@ class ChatMessageModel(Base):
     role: Mapped[str] = mapped_column(nullable=False)  
     content: Mapped[str] = mapped_column(nullable=False)
     sources: Mapped[dict] = mapped_column(JSONB, nullable=True)  
-    created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.utcnow)
+    created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.now)
 
 
     def __repr__(self) -> str:

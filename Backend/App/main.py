@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .Route.ChatRoute import chat_route
+from .Route.AuthRoute import auth_route
 
 app = FastAPI(
     title="Princept RAG API",
@@ -18,6 +19,7 @@ app.add_middleware(
 
 
 app.include_router(chat_route)
+app.include_router(auth_route)
 
 @app.get("/")
 async def root():

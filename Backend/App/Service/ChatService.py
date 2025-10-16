@@ -75,6 +75,7 @@ async def update_title_chat(chat_id : uuid.UUID, title: str) :
                 if not chat_obj :
                     raise UpdateTiltleChatError(f"Chat: {chat_id} not found")
                 chat_obj.title = title #change teh title value
+                
     except Exception as e :
         raise UpdateTiltleChatError("Error encountered during the update title process")
 

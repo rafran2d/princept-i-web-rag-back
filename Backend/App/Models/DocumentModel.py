@@ -17,7 +17,7 @@ class DocumentModel(Base):
     status : Mapped[StatusEnum] = mapped_column(default = StatusEnum.pending)
     meta_data: Mapped[dict] = mapped_column(JSONB, nullable=True)
     hash_key: Mapped[bytes] = mapped_column(nullable=False)
-    created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.utcnow)
+    created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.now)
 
     # Relationships
     chunk: Mapped[list[DocumentChunkModel]] = relationship("DocumentChunkModel", backref="document", cascade="all, delete-orphan")
