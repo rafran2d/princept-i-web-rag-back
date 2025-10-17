@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from jwt.exceptions import InvalidTokenError
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
+from jwt import InvalidTokenError,ExpiredSignatureError
 from App.Exception.TokenException import (
     CreateTokenError,
     ReadTokenError,
@@ -63,6 +64,33 @@ def generate_access_token(user_output: UserOutput) -> str:
     except Exception as e:
         raise Exception(f"Failed to generate access_token. Original Error : {e}")
     
+
+def verify_access_token(access_token: str):
+    """
+    Verifies the authenticity of a JWT access token.
+
+    This function decodes the given JWT using the SECRET_KEY and checks its validity.
+    It raises an exception if the token is expired or invalid.
+
+    Args:
+        access_token (str): The JWT access token to verify.
+
+    Returns:
+        dict: The decoded payload of the token if valid.
+
+    Raises:
+        ExpiredSignatureError: If the token has expired.
+        InvalidTokenError: If the token is invalid or tampered.
+    """
+    try:
+        payload = jwt.decode(access_token, key=SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
+    
+    except ExpiredSignatureError:
+        raise ExpiredSignatureError("The token has expired")
+    
+    except InvalidTokenError:
+        raise InvalidTokenError("Invalid token or tampered")
 
 def generate_refresh_token():
     """

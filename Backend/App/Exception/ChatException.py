@@ -20,3 +20,7 @@ class ReadChatError(Exception):
 
 class IncrementError(Exception):
     pass
+
+class UnvailableChatError(Exception):
+    pass
+#The chat is not available 

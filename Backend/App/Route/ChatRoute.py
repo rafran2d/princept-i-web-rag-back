@@ -2,19 +2,21 @@ from App.Controller.DocumentChunkController import chunking_management as chunk_
 from App.Controller.DocumentController import if_already_uploaded,upload_documents as document_step
 from App.Exception.EmbeddingException import EmbeddingStepError
 from App.Exception.ChunkException import ChunkStepError
+from App.Exception.ChatException import UnvailableChatError
 from App.Exception.DocumentException import DocumentNumberError, NumberPageError
 from App.Schema.ChatRouteSchema import QuestionInput, IngestionOutput, LoadConversationOutput, MessageManagementOutput
 from App.Service.LLMOperationSerivice import generating_response
-from App.Schema.DocumentSchema import DocumentRead
+from App.Schema.DocumentSchema import DocumentRead , StatusEnum as documentstatus
 from App.Schema.DocumentChunkSchema import ChunkRead
 from App.Schema.ChatMessageSchema import MessageOutput, MessageInput, SenderEnum
-from App.Schema.ChatSchema import statusenum
-from App.Service.ChatService import create_chat_prototype, read_chat_list, read_status_chat, increment_num_message,if_exist
+from App.Schema.ChatSchema import statusenum,ChatInput
+from App.Service.Document_service import read_document
+from App.Service.ChatService import create_chat, read_chat_list, read_status_chat, increment_num_message,if_exist
 from App.Service.States.DocumentContext import DocumentContext
 from App.Service.States.FailedState import FailedState
 from App.Service.MessageService import Read_Message, Create_Message
 from App.Controller.EmbeddingController import batch_embedding_process
-from fastapi import APIRouter, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, HTTPException, UploadFile, File, Query,Request
 from typing import List, Optional
 from pydantic import ValidationError
 from datetime import datetime
@@ -56,7 +58,7 @@ async def load_conversation(chat_id: uuid.UUID, offset: Optional[datetime] = Que
             message="Conversation loaded successfully"
         )
     except Exception as e :
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500,detail=str(type(e))+": "+ str(e))
 
 
 @chat_route.post("/{chat_id}/messages", response_model=MessageManagementOutput | dict)
@@ -84,7 +86,16 @@ async def message_managing(chat_id: uuid.UUID, payload: QuestionInput) :
     question = payload.message
     try :
         if await read_status_chat(chat_id) == statusenum.Usable :
+            
+            documents = await read_document(chat_id)
 
+            if not documents :
+                raise UnvailableChatError(f"The chat: {chat_id} has no document yet")
+
+            for doc in documents :
+                if doc.status !=  documentstatus.ready :
+                    raise UnvailableChatError(f"All the chat: {chat_id} 's documents are not ready to work with yet")
+                
             await increment_num_message(chat_id)
             question_input = MessageInput(
                 chat_id=chat_id,
@@ -110,12 +121,18 @@ async def message_managing(chat_id: uuid.UUID, payload: QuestionInput) :
                 message="Answer generated successfully"
             )
 
+    except UnvailableChatError as e:
+        print(type(e))
+        print(e)
+        raise HTTPException(status_code=503,detail=str(type(e))+": "+ str(e))
+
+
     except (ValidationError,Exception) as e :
-        raise HTTPException(status_code=403, detail=f"The Chat is no longer usable: {e}")
+        raise HTTPException(status_code=403,detail=str(type(e))+": "+ str(e))
 
 
 @chat_route.post("/{chat_id}/documents", response_model=IngestionOutput)
-async def document_ingestion(chat_id: uuid.UUID, files: List[UploadFile] = File(...)) :
+async def document_ingestion(chat_id: uuid.UUID,request : Request ,files: List[UploadFile] = File(...)) :
     """
     Handle document ingestion and embedding for a chat.
 
@@ -139,12 +156,18 @@ async def document_ingestion(chat_id: uuid.UUID, files: List[UploadFile] = File(
     - HTTPException 500: If any unexpected server error occurs during ingestion.
     """
     document_limit: int = 3
+
     try:
         if len(files) > document_limit :
             raise DocumentNumberError(f"Only {document_limit} documents can be used")
         
         if not await if_exist(chat_id) :
-            await create_chat_prototype(chat_id)
+            payload = request.state.payload
+            chat_input = ChatInput(
+                id=chat_id,
+                user_id=payload["sub"]
+            )
+            await create_chat(chat_input)
 
         new_files_list : List[UploadFile] = await if_already_uploaded(files,chat_id)
         
@@ -171,8 +194,8 @@ async def document_ingestion(chat_id: uuid.UUID, files: List[UploadFile] = File(
 
     except (DocumentNumberError, NumberPageError) as e :
         print(e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400,detail=str(type(e))+": "+ str(e))
 
     except Exception as e :
         print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+        raise HTTPException(status_code=500,detail=str(type(e))+": "+ str(e))

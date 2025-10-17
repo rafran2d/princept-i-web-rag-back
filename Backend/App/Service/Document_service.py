@@ -108,7 +108,7 @@ async def update_document_status(document_id: uuid.UUID, new_status: StatusEnum)
                     raise Exception(f"Document id {document_id} not found")
                 document_obj.status = new_status #change the title value
     except (SQLAlchemyError,TypeError,SyntaxError) as e :
-        raise UpdateDocumentStatusError(f'Failed to update status of  document {document_id}') from e
+        raise UpdateDocumentStatusError(f'Failed to update status of  document {document_id}.Original Error {e}') from e
 
 
 async def read_document(chat_id : uuid.UUID ) -> List[DocumentRead] :
@@ -424,21 +424,6 @@ async def add_metadata_to_docs(documents, chat_id: uuid.UUID) -> List[DocumentCr
 
     return docs
 
-
-async def set_charged_document(document_id: uuid.UUID) :
-    """
-    Sets the status of a document to 'charged'.
-
-    Args:
-        document_id (uuid.UUID): The document ID to update.
-
-    Raises:
-        UpdateDocumentStatusError: If updating the document status fails.
-    """
-    try :
-        await update_document_status(document_id, StatusEnum.charged)
-    except UpdateDocumentStatusError as e :
-        raise 
 
 
 async def set_chunked_document(document_id: uuid.UUID) :

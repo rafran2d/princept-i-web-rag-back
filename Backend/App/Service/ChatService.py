@@ -44,8 +44,7 @@ async def create_chat(chat : ChatInput) -> ChatOutput :
             async with session.begin() : #start the conversation
                 new_chat = ChatModel(
                     id = chat.id,
-                    user_id=chat.user_id,
-                    title=chat.title
+                    user_id=chat.user_id
                 )
                 session.add(new_chat)
                 await session.flush()#get the id without commiting yet
@@ -259,47 +258,3 @@ async def if_exist(chat_id : uuid.UUID) -> bool :
         raise e
 
 
-#------- Prototype function ----------
-
-async def create_chat_prototype(chat_id : uuid.UUID) -> ChatOutput : 
-    """
-    Creates a prototype chat for a user with default values.
-
-    Args:
-        chat_id (uuid.UUID): The unique ID of the chat to create.
-
-    Returns:
-        ChatOutput: The created prototype chat object.
-
-    Raises:
-        SaveChatError: If creating the prototype chat fails.
-    """
-    try:
-        async with AsyncSessionLocal() as session : #start communication with the db
-            async with session.begin() : #start the conversation
-                stmt = select(UserModel)  # get the user's id from the database 
-                response = await session.execute(stmt)
-                user = response.scalars().first()
-                new_chat = ChatModel(
-                    id = chat_id,
-                    user_id=user.id,
-                    title="first chat"
-                )
-                session.add(new_chat)
-                await session.flush() 
-                chat_created = ChatOutput(
-                    id=new_chat.id,
-                    user_id=new_chat.user_id,
-                    title=new_chat.title,
-                    num_messages=new_chat.num_messages,
-                    status=new_chat.status,
-                    created_at=new_chat.created_at,
-                    updated_at=new_chat.updated_at,
-                    document=[],  
-                    message=[]
-                )
-                return chat_created
-
-            
-    except (SQLAlchemyError, TypeError, SyntaxError, ValidationError) as e:
-        raise SaveChatError(f"Failed to create chat. Original error: {e}") from e

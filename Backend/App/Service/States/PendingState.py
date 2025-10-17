@@ -1,4 +1,4 @@
-from App.Service.Document_service import set_document_failed,set_charged_document
+from App.Service.Document_service import set_document_failed,set_chunked_document
 from .BaseStatesClasse import DocumentBaseStates
 from .ChunkedState import ChunkedState
 from .FailedState import FailedState
@@ -10,7 +10,7 @@ class PendingState(DocumentBaseStates) :
     async def involve(self,main) :
         main.prevstate = self
         main.state =  ChunkedState(main)
-        await set_charged_document(main.id)
+        await set_chunked_document(main.id)
 
     async def fail(self,main) :
         main.prevstate = self
