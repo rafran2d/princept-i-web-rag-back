@@ -276,6 +276,13 @@ LLM_MAX_TOKENS=2000               # Max tokens in response
 ```env
 MAX_MESSAGES_PER_CHAT=30          # Message limit per chat
 ```
+### JWT configuration
+'''env
+JWT_KEY= your_key                #For the signatures of the jwt
+ALGORITHM= your_jwt_algorithm     #The creation algorithm of jwt
+ACCESS_TOKEN_EXPIRES_MINUTES=15   #THe duration off an access token
+REFRESH_TOKEN_EXPIRES_DAYS= 15     #The duration of a refresh token
+"""
 
 ### Optional Features (commented out by default)
 ```env
