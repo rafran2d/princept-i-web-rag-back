@@ -1,8 +1,7 @@
-from fastapi import FastAPI, Request,HTTPException
+from fastapi import Request,HTTPException
 from App.Service.Authentification.TokenService import verify_access_token
 from App.Route.ChatRoute import chat_route
 from jwt import InvalidTokenError,ExpiredSignatureError
-auth = FastAPI()
 
 @chat_route.middleware("http")
 async def verify_jwt_authenticity(request: Request, call_next):

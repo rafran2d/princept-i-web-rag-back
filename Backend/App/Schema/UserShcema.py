@@ -13,12 +13,21 @@ class statususer(str,Enum):
     approved = "approved"
     rejected = "rejected"
 
+class UserExternalInput(BaseModel):
+    email:str
+    password:str
+
 
 class UserInput(BaseModel):
     email : EmailStr
-    display_name : str = None
+    display_name : Optional[str] = None
     password : str
     role : Optional[RoleEnum] = RoleEnum.user
+
+class UserExternalInputSG(BaseModel):
+    email : EmailStr
+    display_name : Optional[str] = None
+    password : str
 
 class UserInternalOutput(BaseModel):
     id : uuid.UUID

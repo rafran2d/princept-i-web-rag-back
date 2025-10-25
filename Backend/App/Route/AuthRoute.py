@@ -13,7 +13,7 @@ from App.Service.Authentification.TokenService import (
     set_revoked_token,
     read_refresh_token
 )
-from App.Schema.UserShcema import UserOutput,UserInput
+from App.Schema.UserShcema import UserOutput,UserInput,UserExternalInput,UserExternalInputSG
 from App.Schema.RefreshTokenSchema import RefreshTokenInput
 from App.Schema.AuthRouteSchema import Sign_upoutput
 from App.Exception.UserException import (
@@ -42,7 +42,7 @@ auth_route = APIRouter(
 )
 
 @auth_route.post("/sign_up",response_model=Sign_upoutput )
-async def sign_up(User : UserInput) :
+async def sign_up(User : UserExternalInputSG) :
     """
     Handle user registration.
 
@@ -54,6 +54,7 @@ async def sign_up(User : UserInput) :
 
     Returns:
         Sign_upoutput: The response containing the status code, created user, and success message.
+        JSONResponse: Contains a message informing that the Email is already used or the email is invalid
 
     Raises:
         HTTPException: If the email is already used, invalid, or an unexpected error occurs.
@@ -68,12 +69,14 @@ async def sign_up(User : UserInput) :
         )
 
     except EmailAlreadyUsedError as e :
-        raise HTTPException(status_code=409,detail=str(type(e))+": "+ str(e))
+        return JSONResponse(status_code=200,content={"message":"Email already used"})
     
     except EmailStructError as e :
-        raise HTTPException(status_code=400,detail=str(type(e))+": "+ str(e))
+        return JSONResponse(status_code=200, content={"message":"Invalid Email"})
     
     except Exception as e:
+        print(type(e))
+        print(e)
         raise HTTPException(status_code=500,detail=str(type(e))+": "+ str(e))
     
 
@@ -145,7 +148,7 @@ async def reject_user(user_id: uuid.UUID):
         raise HTTPException(status_code=500, detail=str(type(e)) + ": " + str(e))
 
 @auth_route.post("/login")
-async def login(User : UserInput) :
+async def login(User : UserExternalInput) :
     """
     Handle user login and token generation.
 
@@ -157,9 +160,12 @@ async def login(User : UserInput) :
 
     Returns:
         JSONResponse: Contains the access token in the response body and the refresh token as a cookie.
+        JSONResposne: Contains a message informing that the user was not found
+        JSONResponse: Contains a message informing that the pasword is incorrect
+        JSONResponse: Contains a messag infoming that the email structrur is invalid
 
     Raises:
-        HTTPException: If the user is not found, password is incorrect, or any other unexpected error occurs.
+        HTTPException: If unexpected error occurs.
     """
     try:
         if_correct,user_output = await compare_passwd(User)
@@ -174,7 +180,8 @@ async def login(User : UserInput) :
 
             await create_refresh_token(refresh_token_input)
 
-            response = JSONResponse(status_code=200,content={"acess_token" : access_token})
+            response = JSONResponse(status_code=200,content={"message":"Login successful",
+                "acess_token" : access_token})
             response .set_cookie(
                 key="refresh_token",
                 value= refresh_token,
@@ -188,19 +195,16 @@ async def login(User : UserInput) :
             return response
 
     except UserNotFoundError as e :
-        print(type(e))
-        print(e)
-        raise HTTPException(status_code=404,detail=str(type(e))+": "+ str(e))
+        res = JSONResponse(status_code=200, content={"message":"User Not Found"})
+        return res
 
     except IncorrectPasswordError as e :
-        print(e)
-        print(type(e))
-        raise HTTPException(status_code=401,detail=str(type(e))+": "+ str(e))
+        res = JSONResponse(status_code=200,content={"message":"Incorrect Password"})
+        return res
 
     except EmailStructError as e :
-        print(type(e))
-        print(e)
-        raise HTTPException(status_code=400,detail=str(type(e))+": "+ str(e))
+        res = JSONResponse(status_code=200, content={"message":"Invalid Email"})
+        return res
     
     except Exception as e :
         print(type(e))

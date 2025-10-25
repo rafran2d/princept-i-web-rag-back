@@ -9,7 +9,7 @@ from App.Exception.UserException import (
     EmailStructError
 )
 from App.Models.UserModel import UserModel as Model
-from App.Schema.UserShcema import UserInput, UserOutput,UserInternalOutput, statususer
+from App.Schema.UserShcema import UserInput, UserOutput,UserInternalOutput, statususer,UserExternalInput,UserExternalInputSG
 from App.database import AsyncSessionLocal
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -38,7 +38,7 @@ def hash_password(password: str) -> str:
     return hashed_bytes.decode('utf-8')
 
 
-async def compare_passwd(user : UserInput)  :
+async def compare_passwd(user : UserExternalInput)  :
     """
     Compare a plain-text password with the hashed password of a user retrieved from the database.
 
@@ -67,7 +67,7 @@ async def compare_passwd(user : UserInput)  :
         raise 
 
 
-async def create_user(user_input: UserInput) -> UserOutput :
+async def create_user(user_input: UserExternalInputSG) -> UserOutput :
     """
     Create a new user in the database with a hashed password.
 
@@ -94,8 +94,7 @@ async def create_user(user_input: UserInput) -> UserOutput :
                     new_user = Model(
                         email=user_input.email,
                         display_name=user_input.display_name,
-                        hashed_password=hashed_password,
-                        role=user_input.role
+                        hashed_password=hashed_password
                     )
                     session.add(new_user)
                     await session.flush() #send the modification without commiting yet
@@ -238,6 +237,8 @@ async def if_email_exist(email : EmailStr) -> bool :
         
         else :
             return False
+    except UserNotFoundError:
+        return False
     
     except Exception as e :
         raise e
