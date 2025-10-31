@@ -3,7 +3,7 @@ from App.database import AsyncSessionLocal
 from App.Schema.UserShcema import UserOutput
 from App.Schema.RefreshTokenSchema import RefreshTokenInput, RefreshTokenOutput
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,timezone
 from jwt.exceptions import InvalidTokenError
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -47,13 +47,12 @@ def generate_access_token(user_output: UserOutput) -> str:
     try:
         payload = {
             "sub": str(user_output.id),
-            "exp": datetime.now() + timedelta(minutes=int(ACCESS_TOKEN_EXPIRES)),
-            "iat": datetime.now(),
+            "exp": int((datetime.now(timezone.utc) + timedelta(minutes=int(ACCESS_TOKEN_EXPIRES))).timestamp()),
+            "iat": int(datetime.now(timezone.utc).timestamp()),
             "email": user_output.email,
             "role": user_output.role,
             "status": user_output.status
         }
-
         access_token = jwt.encode(payload=payload, key=SECRET_KEY, algorithm=ALGORITHM)
 
         return access_token

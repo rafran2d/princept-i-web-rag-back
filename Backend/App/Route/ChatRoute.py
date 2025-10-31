@@ -3,20 +3,21 @@ from App.Controller.DocumentController import if_already_uploaded,upload_documen
 from App.Exception.EmbeddingException import EmbeddingStepError
 from App.Exception.ChunkException import ChunkStepError
 from App.Exception.ChatException import UnvailableChatError
-from App.Exception.DocumentException import DocumentNumberError, NumberPageError
+from App.Exception.DocumentException import DocumentNumberError, NumberPageError,DocumentDeleteError
 from App.Schema.ChatRouteSchema import QuestionInput, IngestionOutput, LoadConversationOutput, MessageManagementOutput
 from App.Service.LLMOperationSerivice import generating_response
 from App.Schema.DocumentSchema import DocumentRead , StatusEnum as documentstatus
 from App.Schema.DocumentChunkSchema import ChunkRead
 from App.Schema.ChatMessageSchema import MessageOutput, MessageInput, SenderEnum
 from App.Schema.ChatSchema import statusenum,ChatInput
-from App.Service.Document_service import read_document
+from App.Service.Document_service import read_document,delete_all_document
 from App.Service.ChatService import create_chat, read_chat_list, read_status_chat, increment_num_message,if_exist
 from App.Service.States.DocumentContext import DocumentContext
 from App.Service.States.FailedState import FailedState
 from App.Service.MessageService import Read_Message, Create_Message
 from App.Controller.EmbeddingController import batch_embedding_process
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query,Request
+from fastapi.responses import JSONResponse
 from typing import List, Optional
 from pydantic import ValidationError
 from datetime import datetime
@@ -199,3 +200,11 @@ async def document_ingestion(chat_id: uuid.UUID,request : Request ,files: List[U
     except Exception as e :
         print(traceback.format_exc())
         raise HTTPException(status_code=500,detail=str(type(e))+": "+ str(e))
+
+@chat_route.delete('/{chat_id}/documents')
+async def Delete_chat_document(chat_id:uuid.UUID):
+    try:
+        await delete_all_document(chat_id)
+        return JSONResponse(status_code=200,content={"message":"delete successful"})
+    except DocumentDeleteError as e:
+        raise HTTPException(status_code=500, detail=str(type(e))+": "+ str(e))

@@ -1,5 +1,4 @@
 from App.Models.DocumentModel import DocumentModel
-from App.Models.UserModel import UserModel# TEMPORARY NEEDED
 from App.database import AsyncSessionLocal
 from App.Schema.DocumentSchema import DocumentCreate, DocumentRead, StatusEnum,DocumentRead2
 from App.Exception.IngestionException import SaveDocumentError,UpdateDocumentStatusError,UnsupportedFileTypeError,DocumentFailedError
@@ -19,8 +18,40 @@ import PyPDF2
 import tempfile
 from typing import List
 import aiofiles
+import platform
 
 #-------crud------------
+
+async def delete_all_document(chat_id:uuid.UUID):
+    """
+    Delete a chat's document from the database.
+
+    Args:
+        doc (DocumentRead): The document object to delete. 
+                            Must contain at least the `id` attribute.
+
+    Raises:
+        DocumentDeleteError: If a SQLAlchemy error occurs during deletion.
+
+    Notes:
+        - Uses an asynchronous session with `AsyncSessionLocal`.
+        - Deletion is performed within a transactional context (`session.begin()`), 
+          which ensures automatic commit.
+        - If the document does not exist, no action is taken.
+    """
+    try:
+        async with AsyncSessionLocal as session:
+            async with session.begin():
+
+                stmt = select(DocumentModel).where(DocumentModel.chat_id == chat_id)
+                response = await session.execute(stmt)
+                object = response.scalars().all()
+
+                if object :
+                    await session.delete(object)
+    except SQLAlchemyError as e:
+        raise DocumentDeleteError("Failed to delete docs")
+
 async def delete_document(doc: DocumentRead) :
     """
     Delete a document from the database based on its ID.
@@ -207,24 +238,46 @@ def get_num_pages_pdf(file_path: str) -> int :
         return num_pages
 
 
-def get_num_pages_docx(file_path: str) -> int :
+def get_num_pages_docx(file_path: str) -> int:
     """
-    Returns the number of pages in a DOCX file by converting it to PDF temporarily.
+    Returns the number of pages in a DOCX file.
+
+    On Windows, it converts the DOCX to a temporary PDF and counts PDF pages.
+    On other systems, it estimates pages based on paragraph count (~40 per page).
 
     Args:
         file_path (str): Path to the DOCX file.
 
     Returns:
         int: Number of pages in the DOCX file.
+
+    Raises:
+        NumberPageError: If the page count cannot be determined or exceeds the limit.
     """
-    try :
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_pdf :
-            convert(file_path, tmp_pdf.name) # transform the docx into pdf
-            num_pages = get_num_pages_pdf(tmp_pdf.name)
-        return num_pages
-    finally :
-        if os.path.exists(tmp_pdf.name) :
-            os.remove(tmp_pdf.name) #delete the temporary .pdf file
+    if platform.system() == "Windows":
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_pdf:
+                convert(file_path, tmp_pdf.name)  # transform the docx into pdf
+                num_pages = get_num_pages_pdf(tmp_pdf.name)
+            return num_pages
+        finally:
+            if os.path.exists(tmp_pdf.name):
+                os.remove(tmp_pdf.name)  # delete the temporary .pdf file
+    else:
+        try:
+            doc = DocxDocument(file_path)
+            total_paragraphs = len(doc.paragraphs)
+            estimated_pages = max(1, total_paragraphs // 40)
+
+            if estimated_pages > 150:
+                raise NumberPageError(
+                    f"{file_path} has more than 150 pages (estimated: {estimated_pages})"
+                )
+
+            return estimated_pages
+        except Exception as e:
+            raise NumberPageError(f"Could not estimate pages for {file_path}: {e}")
+
 
 
 def extract_text_pdf(file_path: Path) -> str :
@@ -245,19 +298,36 @@ def extract_text_pdf(file_path: Path) -> str :
     return text
 
 
+import zipfile
+
 def extract_text_docx(file_path: Path) -> str :
     """
-    Extracts text content from a DOCX file.
+    Extracts text content from a DOCX file.j
 
     Args:
         file_path (Path): Path to the DOCX file.
 
     Returns:
         str: Extracted text content.
+        
+    Raises:
+        ValueError: If the DOCX file is corrupted or invalid.
     """
-    doc = DocxDocument(file_path) #get a DocxDocument object using the mentionned file_path
-    return "\n".join([p.text for p in doc.paragraphs])
-
+    if not file_path.exists():
+        raise FileNotFoundError(f"File not found: {file_path}")
+    
+    if not zipfile.is_zipfile(file_path):
+        raise ValueError(f"Invalid DOCX file - not a valid ZIP archive: {file_path.name}")
+    
+    try:
+        doc = DocxDocument(file_path)
+        return "\n".join([p.text for p in doc.paragraphs])
+        
+    except KeyError as e:
+        raise ValueError(f"Corrupted DOCX file - missing component {e} in: {file_path.name}")
+        
+    except Exception as e:
+        raise ValueError(f"Failed to extract text from DOCX {file_path.name}: {type(e).__name__}: {e}")
 
 def load_file_from_uploads(target_folder: Path = Path("App/Data/Uploads")) -> List[dict] :
     """
@@ -553,24 +623,3 @@ async def compare_hash(file: UploadFile, chat_id: uuid.UUID) -> "DocumentRead2 |
     except Exception as e:
         raise e
 
-# ---------temporary function (ti will be deleted soon)---------------
-
-async def get_user_prototype() :
-    """
-    Retrieves a prototype user from the database for testing purposes.
-
-    Returns:
-        UserModel: The first user found in the database.
-
-    Raises:
-        Exception: If there is an error during the database query.
-    """
-    try :
-        async with AsyncSessionLocal() as session :
-            async with session.begin() :
-                stmt = select(UserModel)
-                resultUser = await session.execute(stmt)
-                User_obj = resultUser.scalars().first()
-                return User_obj
-    except Exception as e :
-        raise

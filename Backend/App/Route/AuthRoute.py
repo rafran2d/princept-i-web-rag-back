@@ -181,7 +181,7 @@ async def login(User : UserExternalInput) :
             await create_refresh_token(refresh_token_input)
 
             response = JSONResponse(status_code=200,content={"message":"Login successful",
-                "acess_token" : access_token})
+                "access_token" : access_token})
             response .set_cookie(
                 key="refresh_token",
                 value= refresh_token,

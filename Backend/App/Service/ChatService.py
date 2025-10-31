@@ -29,13 +29,10 @@ client = AsyncOpenAI(api_key=os.getenv("API_KEY"))
 async def create_chat(chat : ChatInput) -> ChatOutput :
     """
     Creates a new chat entry in the database.
-
     Args:
         chat (ChatInput): Chat input data containing id, user_id, and title.
-
     Returns:
         ChatOutput: The created chat object.
-
     Raises:
         SaveChatError: If there is an error during chat creation.
     """
@@ -48,11 +45,22 @@ async def create_chat(chat : ChatInput) -> ChatOutput :
                 )
                 session.add(new_chat)
                 await session.flush()#get the id without commiting yet
-                chat_created = ChatOutput.model_validate(new_chat)
+                await session.refresh(new_chat)
+                
+                chat_created = ChatOutput(
+                    id=new_chat.id,
+                    user_id=new_chat.user_id,
+                    title=new_chat.title,
+                    num_messages=new_chat.num_messages,
+                    status=new_chat.status,
+                    created_at=new_chat.created_at,
+                    updated_at=new_chat.updated_at,
+                    document=None,
+                    message=None
+                )
                 return chat_created 
     except (SQLAlchemyError, TypeError, SyntaxError, ValidationError) as e :
         raise SaveChatError(f"Failed to create chat. Original error: {e}") from e
-
 
 async def update_title_chat(chat_id : uuid.UUID, title: str) :
     """
