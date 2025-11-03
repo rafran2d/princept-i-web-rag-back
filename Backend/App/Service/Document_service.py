@@ -1,6 +1,6 @@
 from App.Models.DocumentModel import DocumentModel
 from App.database import AsyncSessionLocal
-from App.Schema.DocumentSchema import DocumentCreate, DocumentRead, StatusEnum,DocumentRead2
+from App.Schema.DocumentSchema import DocumentCreate, DocumentRead, StatusEnum
 from App.Exception.IngestionException import SaveDocumentError,UpdateDocumentStatusError,UnsupportedFileTypeError,DocumentFailedError
 from App.Exception.DocumentException import DocumentReadError,NumberPageError,DocumentDeleteError
 from sqlalchemy.exc import SQLAlchemyError
@@ -40,7 +40,7 @@ async def delete_all_document(chat_id:uuid.UUID):
         - If the document does not exist, no action is taken.
     """
     try:
-        async with AsyncSessionLocal as session:
+        async with AsyncSessionLocal() as session:
             async with session.begin():
 
                 stmt = select(DocumentModel).where(DocumentModel.chat_id == chat_id)
@@ -48,11 +48,14 @@ async def delete_all_document(chat_id:uuid.UUID):
                 object = response.scalars().all()
 
                 if object :
-                    await session.delete(object)
+                    for doc in object:
+                        await session.delete(doc)
+
     except SQLAlchemyError as e:
         raise DocumentDeleteError("Failed to delete docs")
-
-async def delete_document(doc: DocumentRead) :
+    
+    
+async def delete_document(doc: DocumentRead):
     """
     Delete a document from the database based on its ID.
 
@@ -69,20 +72,54 @@ async def delete_document(doc: DocumentRead) :
           which ensures automatic commit.
         - If the document does not exist, no action is taken.
     """
-    try : 
-        async with AsyncSessionLocal() as session :  # start communication with the db
-            async with session.begin() :   
+    try:
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
                 
                 stmt = select(DocumentModel).where(DocumentModel.id == doc.id)
                 response = await session.execute(stmt)
                 object = response.scalars().first()
 
-                if object :
+                if object:
                     await session.delete(object)
                     
-    except SQLAlchemyError :
+    except SQLAlchemyError:
         raise DocumentDeleteError("Failed to delete the docs")
     
+    
+async def delete_documents_except(chat_id: uuid.UUID, keep_ids: List[uuid.UUID]) -> int:
+    """
+    Delete all documents for a given chat except those whose IDs are in the keep_ids list.
+
+    This function opens an async SQLAlchemy session internally, filters documents by chat_id,
+    and deletes all documents whose IDs are not in the keep_ids list.
+
+    Args:
+        chat_id (uuid.UUID): The chat ID to filter documents.
+        keep_ids (List[uuid.UUID]): List of document IDs to keep.
+
+    Returns:
+        int: Number of documents deleted.
+
+    Raises:
+        HTTPException 500: If deletion fails due to a database error.
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                stmt = select(DocumentModel).where(
+                    DocumentModel.chat_id == chat_id,
+                    DocumentModel.id.not_in(keep_ids)
+                )
+                result = await session.execute(stmt)
+                objects = result.scalars().all()
+
+                for obj in objects:
+                    await session.delete(obj)
+
+    except SQLAlchemyError as e:
+        raise e
+
 
 
 async def create_document(document: DocumentCreate) -> DocumentRead :
@@ -106,8 +143,7 @@ async def create_document(document: DocumentCreate) -> DocumentRead :
                     chat_id=document.chat_id,
                     title=doc_title,
                     text=document.text,
-                    meta_data=document.meta_data,
-                    hash_key = await create_hash_bytes(document.text.encode())
+                    meta_data=document.meta_data
                 )
                 session.add(new_document)
                 await session.flush() #To give the object an id
@@ -166,28 +202,6 @@ async def read_document(chat_id : uuid.UUID ) -> List[DocumentRead] :
         raise DocumentReadError(f"Error while Reading documents.Cause : {e}")
 
 
-async def read_document_2(chat_id : uuid.UUID ) -> List[DocumentRead2] :
-    """
-    Retrieves all documents associated with a chat.
-
-    Args:
-        chat_id (uuid.UUID): The chat ID.
-
-    Returns:
-        List[DocumentRead2]: A list of documents linked to the chat.
-
-    Raises:
-        DocumentReadError: If reading documents fails.
-    """
-    try :
-        async with AsyncSessionLocal() as session : #start communication with the db
-            async with session.begin() : #start the conversation
-                stmt = select(DocumentModel).where(DocumentModel.chat_id == chat_id)
-                result = await session.execute(stmt)
-                documents = result.scalars().all() #return all the datas fom the db as an python object
-                return [DocumentRead2.from_orm(doc) for doc in documents]
-    except Exception as e :
-        raise DocumentReadError(f"Error while Reading documents.Cause : {e}")
 
 
 
@@ -480,8 +494,7 @@ async def add_metadata_to_docs(documents, chat_id: uuid.UUID) -> List[DocumentCr
             new_doc = DocumentCreate(
                 chat_id= chat_id,
                 text= text,
-                meta_data= meta_data,
-                hash_key= await create_hash_bytes(text.encode())
+                meta_data= meta_data
             )
              #convert the dict into DocumentCreate object
             docs.append(new_doc)
@@ -528,7 +541,7 @@ async def set_ready_document(document_id: uuid.UUID) :
         raise 
 
 
-async def set_document_failed(document_id: uuid.UUID) :
+async def set_document_failed(document_id: uuid.UUID) ->DocumentRead :
     """
     Sets the status of a document to 'failed'.
 
@@ -544,82 +557,30 @@ async def set_document_failed(document_id: uuid.UUID) :
         raise       
 
 
-async def create_hash(file: UploadFile) -> bytes :
-    """
-    Generates the BLAKE2b hash of an uploaded file.
 
-    This function reads the content of the provided file as bytes and computes
-    its cryptographic digest using the BLAKE2b algorithm.
+async def compare_name(file_name: str, chat_id: uuid.UUID) -> DocumentRead | None:
+    """
+    compare the database's file with anothe other files 
 
     Args:
-        file (UploadFile): The file uploaded via FastAPI.
-
+        file_name(str): the file that is being uploading
+        chat_id(uuid.UUID): the chat's ID
+    
     Returns:
-        bytes: The hash of the file in binary form.
+        None | DocumentRead : if it is already uploaded or not
 
     Raises:
-        Exception: Propagates any exception encountered during reading or hashing.
-    """
-    try :
-        await file.seek(0)
-        bytes_repr = await file.read()           # Read the file as bytes
-        hash_obj = hashlib.new("blake2b")        # Create a BLAKE2b hash object
-        hash_obj.update(bytes_repr)              # Add data to the hash
-        hashed = hash_obj.digest()               # Retrieve the hash
-
-        return hashed
-    except Exception as e :
-        raise e
-
-
-async def create_hash_bytes(bytes_data: bytes) -> bytes:
-    """
-    Generate a BLAKE2b hash from the input bytes.
-
-    Args:
-        bytes_data (bytes): Data to hash.
-
-    Returns:
-        bytes: The raw BLAKE2b hash digest.
+        Exception: If it fails
     """
     try:
-        hash_obj = hashlib.blake2b()  # same as hashlib.new('blake2b')
-        hash_obj.update(bytes_data)
-        return hash_obj.digest()  # raw bytes
-        # return hash_obj.hexdigest()  # if you prefer hex string
-    except Exception as e:
-        raise e
-
-
-async def compare_hash(file: UploadFile, chat_id: uuid.UUID) -> "DocumentRead2 | None" :
-    """
-    Compares the hash of an uploaded file with the hashes of documents
-    associated with a given chat ID.
-
-    Args:
-        file (UploadFile): The file uploaded via FastAPI.
-        chat_id (uuid.UUID): The ID of the chat whose documents will be checked.
-
-    Returns:
-        DocumentRead | None: Returns the matching document if found,
-        otherwise returns None.
-
-    Raises:
-        Exception: Propagates any exception encountered during hashing or document retrieval.
-    """
-    try :
-        list_output_docs = await read_document_2(chat_id)
-
-        for doc in list_output_docs :
-
-            await file.seek(0)    # Rewind the file to read it again for each comparison
-            bytes_repr = await create_hash(file)
-
-            if bytes_repr == doc.hash_key :
+        docs: list[DocumentRead] = await read_document(chat_id)
+        for doc in docs:
+            if file_name == doc.meta_data["file_name"]:
                 return doc
-
-        return None  # No match found
-
+        return None
+    
     except Exception as e:
         raise e
+
+
 

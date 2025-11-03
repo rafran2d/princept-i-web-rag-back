@@ -187,9 +187,9 @@ async def login(User : UserExternalInput) :
                 value= refresh_token,
                 max_age= REFRESH_TOKEN_EXPIRES_AT * 24 * 60 * 60,
                 httponly=True,
-                secure=True,
-                samesite='strict'
-        
+                secure=False,
+                samesite="none",
+                path="/"        
             )
 
             return response
@@ -247,71 +247,61 @@ async def revoked_refresh_token(request : Request) :
 
 
 @auth_route.post('/refresh')
-async def refesh_access_token(request : Request) :
-    """
-    Refresh the user's access token.
-
-    This endpoint verifies the current refresh token from the cookie, revokes it,
-    and issues new access and refresh tokens. It also updates the refresh token in the cookie.
-
-    Args:
-        request (Request): The HTTP request object containing the cookies.
-
-    Returns:
-        JSONResponse: Contains a new access token and updates the refresh token cookie.
-
-    Raises:
-        HTTPException: If the refresh token is missing, revoked, invalid, or another error occurs.
-    """
+async def refresh_access_token(request: Request):
     try:
         refresh_token = request.cookies.get("refresh_token")
+        print(f"Cookies reçus: {request.cookies}")  
 
-        if not refresh_token :
-            raise TokenNotFoundError("No refresh token was  saved in the cookie")
+        if not refresh_token:
+            raise TokenNotFoundError("No refresh token was saved in the cookie")
         
-        hashed_token = hash_token(refresh_token)        
+        hashed_token = hash_token(refresh_token)
         refresh_token_obj = await read_refresh_token(hashed_token)
 
+        if refresh_token_obj.revoked:
+            raise TokenRevokedError(f"The token: {refresh_token_obj.id} is already revoked")
+
+        if hashed_token != refresh_token_obj.hashed_token:
+            raise TokenNotFoundError("The token is not from the application")
 
         await set_revoked_token(refresh_token_obj.id)
 
-        if hashed_token == refresh_token_obj.hashed_token :
-            if not refresh_token_obj.revoked :
+        user_output = await read_user_id(refresh_token_obj.user_id)
+        new_access_token = generate_access_token(user_output)
+        new_refresh_token = generate_refresh_token()
+        
+        refresh_token_input = RefreshTokenInput(
+            user_id=refresh_token_obj.user_id,
+            token=new_refresh_token
+        )
+        await create_refresh_token(refresh_token_input)
 
-                user_output = await read_user_id(refresh_token_obj.user_id)
-                new_access_token = generate_access_token(user_output)
-                new_refresh_token = generate_refresh_token()
-                refresh_token_input = RefreshTokenInput(
-                    user_id= refresh_token_obj.user_id,
-                    token=new_refresh_token
-                )
-                await create_refresh_token(refresh_token_input)
+        response = JSONResponse(
+            status_code=200,
+            content={
+                "access_token": new_access_token,  
+                "message": "refresh_tokens successful"
+            }
+        )
+        
+        response.set_cookie(
+            key="refresh_token",
+            value=new_refresh_token,
+            max_age=REFRESH_TOKEN_EXPIRES_AT * 24 * 60 * 60,
+            httponly=True,
+            secure=False,
+            samesite='none',
+            path="/"
+        )
 
-                response = JSONResponse(status_code=200,content={"acess_token" : new_access_token})
-                response .set_cookie(
-                    key="refresh_token",
-                    value= new_refresh_token,
-                    max_age= REFRESH_TOKEN_EXPIRES_AT * 24 * 60 * 60,
-                    httponly=True,
-                    secure=True,
-                    samesite='strict'
-            
-                )
+        return response
 
-                return response
-            
-            else :
-                raise TokenRevokedError(f"The token: {refresh_token_obj.id} is already revoked")
-
-        else :
-            raise TokenNotFoundError(f"The token: {refresh_token_obj} is not from the application")
-
-    except (TokenNotFoundError,TokenRevokedError) as e:
-        print(type(e))
-        print(e)        
-        raise HTTPException(status_code= 401,detail=str(type(e))+": "+ str(e))
-    
-    except Exception as e :
+    except (TokenNotFoundError, TokenRevokedError) as e:
         print(type(e))
         print(e)
-        raise HTTPException(status_code=500,detail=str(type(e))+": "+ str(e))
+        raise HTTPException(status_code=401, detail=str(type(e)) + ": " + str(e))
+    
+    except Exception as e:
+        print(type(e))
+        print(e)
+        raise HTTPException(status_code=500, detail=str(type(e)) + ": " + str(e))

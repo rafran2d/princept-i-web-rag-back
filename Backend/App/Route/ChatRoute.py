@@ -1,5 +1,5 @@
 from App.Controller.DocumentChunkController import chunking_management as chunk_step
-from App.Controller.DocumentController import if_already_uploaded,upload_documents as document_step
+from App.Controller.DocumentController import upload_documents as document_step,if_already_uploaded
 from App.Exception.EmbeddingException import EmbeddingStepError
 from App.Exception.ChunkException import ChunkStepError
 from App.Exception.ChatException import UnvailableChatError
@@ -10,7 +10,7 @@ from App.Schema.DocumentSchema import DocumentRead , StatusEnum as documentstatu
 from App.Schema.DocumentChunkSchema import ChunkRead
 from App.Schema.ChatMessageSchema import MessageOutput, MessageInput, SenderEnum
 from App.Schema.ChatSchema import statusenum,ChatInput
-from App.Service.Document_service import read_document,delete_all_document
+from App.Service.Document_service import read_document,delete_all_document,delete_documents_except
 from App.Service.ChatService import create_chat, read_chat_list, read_status_chat, increment_num_message,if_exist
 from App.Service.States.DocumentContext import DocumentContext
 from App.Service.States.FailedState import FailedState
@@ -52,6 +52,7 @@ async def load_conversation(chat_id: uuid.UUID, offset: Optional[datetime] = Que
     try :
         Messages: list[MessageOutput] = await Read_Message(chat_id)
         chats = await read_chat_list(offset)
+        docs = await read_document(chat_id)
         return LoadConversationOutput(
             status_code=200,
             all_messages=Messages,
@@ -60,6 +61,31 @@ async def load_conversation(chat_id: uuid.UUID, offset: Optional[datetime] = Que
         )
     except Exception as e :
         raise HTTPException(status_code=500,detail=str(type(e))+": "+ str(e))
+    
+@chat_route.get('/{chat_id}/documents',response_model=List[DocumentRead])
+async def load_docs(chat_id : uuid.UUID):
+    """
+    Load all mentionned chat's documnets
+
+    Parameters:
+    - chat_id
+
+    Returns:
+    - JSONResponse: contains status_code,datas (the documents)
+
+    Raises:
+    - HTTPException 500: Internal servor error
+    """
+
+    try:
+        docs = await read_document(chat_id)
+        
+        return docs
+    
+    except Exception as e:
+        raise HTTPException(status_code=500,detail=str(type(e))+": "+ str(e))
+
+
 
 
 @chat_route.post("/{chat_id}/messages", response_model=MessageManagementOutput | dict)
@@ -133,7 +159,7 @@ async def message_managing(chat_id: uuid.UUID, payload: QuestionInput) :
 
 
 @chat_route.post("/{chat_id}/documents", response_model=IngestionOutput)
-async def document_ingestion(chat_id: uuid.UUID,request : Request ,files: List[UploadFile] = File(...)) :
+async def document_ingestion(chat_id: uuid.UUID, request: Request, files: List[UploadFile] = File(...)):
     """
     Handle document ingestion and embedding for a chat.
 
@@ -141,9 +167,9 @@ async def document_ingestion(chat_id: uuid.UUID,request : Request ,files: List[U
     1. Validate the number of uploaded documents does not exceed document_limit.
     2. Create a chat prototype if it doesn't exist.
     3. Manage documents.(check if any of the file is already store in the db so no need to upload it again)
-    6. Upload documents and store metadata in the database.
+    4. Upload documents and store metadata in the database.
     5. Split each document into chunks and store them in the database.
-    7. Generate embeddings for each chunk and store them in the database.
+    6. Generate embeddings for each chunk and store them in the database.
 
     Parameters:
     - chat_id (uuid.UUID): Unique identifier of the chat.
@@ -159,10 +185,11 @@ async def document_ingestion(chat_id: uuid.UUID,request : Request ,files: List[U
     document_limit: int = 3
 
     try:
-        if len(files) > document_limit :
+
+        if len(files) > document_limit:
             raise DocumentNumberError(f"Only {document_limit} documents can be used")
         
-        if not await if_exist(chat_id) :
+        if not await if_exist(chat_id):
             payload = request.state.payload
             chat_input = ChatInput(
                 id=chat_id,
@@ -170,22 +197,27 @@ async def document_ingestion(chat_id: uuid.UUID,request : Request ,files: List[U
             )
             await create_chat(chat_input)
 
-        new_files_list : List[UploadFile] = await if_already_uploaded(files,chat_id)
-        
-        documents_output: List[DocumentRead] = await document_step(chat_id, new_files_list)
-        docs_state = [DocumentContext(doc.id) for doc in documents_output]
+        new_files_list, ids = await if_already_uploaded(files, chat_id)
 
-        for document, state in zip(documents_output, docs_state):
-            try:
-                if not isinstance(state.state, FailedState):
-                    chunk_list: List[ChunkRead] = await chunk_step(document)
-                    await state.involve()
-                    await batch_embedding_process(chunk_list)
-                    await state.involve()
-            except (ChunkStepError, EmbeddingStepError) as e:
-                await state.fail()
-                print(f"Error processing document {document.id}: {e}")
-                raise HTTPException(status_code=400, detail=str(e))
+        await delete_documents_except(chat_id, ids)
+        
+        if new_files_list:
+            documents_output: List[DocumentRead] = await document_step(chat_id, new_files_list)
+            docs_state = [DocumentContext(doc.id) for doc in documents_output]
+
+            for document, state in zip(documents_output, docs_state):
+                try:
+                    if not isinstance(state.state, FailedState):
+                        chunk_list: List[ChunkRead] = await chunk_step(document)
+                        await state.involve()
+                        await batch_embedding_process(chunk_list)
+                        await state.involve()
+                except (ChunkStepError, EmbeddingStepError) as e:
+                    await state.fail()
+                    print(f"Error processing document {document.id}: {e}")
+                    raise HTTPException(status_code=400, detail=str(e))
+        else:
+            documents_output = await read_document(chat_id)
 
         return IngestionOutput(
             status_code=200,
@@ -193,13 +225,14 @@ async def document_ingestion(chat_id: uuid.UUID,request : Request ,files: List[U
             message="Documents processed (some may have failed)"
         )
 
-    except (DocumentNumberError, NumberPageError) as e :
+    except (DocumentNumberError, NumberPageError) as e:
         print(e)
-        raise HTTPException(status_code=400,detail=str(type(e))+": "+ str(e))
+        raise HTTPException(status_code=400, detail=str(type(e)) + ": " + str(e))
 
-    except Exception as e :
+    except Exception as e:
         print(traceback.format_exc())
-        raise HTTPException(status_code=500,detail=str(type(e))+": "+ str(e))
+        raise HTTPException(status_code=500, detail=str(type(e)) + ": " + str(e))
+
 
 @chat_route.delete('/{chat_id}/documents')
 async def Delete_chat_document(chat_id:uuid.UUID):
