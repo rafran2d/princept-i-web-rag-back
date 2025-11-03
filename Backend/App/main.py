@@ -68,50 +68,75 @@ async def verify_jwt_authenticity(request: Request, call_next):
 
     if request.url.path in public_paths or request.url.path.startswith("/auth"):
         return await call_next(request)
-    
+
     if request.url.path.startswith("/chat"):
         auth_header = request.headers.get("Authorization")
-        
+
         if not auth_header:
-            return JSONResponse(
+            response = JSONResponse(
                 status_code=401,
                 content={"detail": "Authorization header missing"}
             )
+            # Add CORS headers
+            origin = request.headers.get("origin", "*")
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
         
         try:
             if not auth_header.startswith("Bearer "):
-                return JSONResponse(
+                response = JSONResponse(
                     status_code=401,
                     content={"detail": "Token format invalid. Must start with 'Bearer '"}
                 )
-            
+                origin = request.headers.get("origin", "*")
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+                return response
+
             access_token = auth_header.split(" ")[1]
-            
+
             if not access_token:
-                return JSONResponse(
+                response = JSONResponse(
                     status_code=401,
                     content={"detail": "Token is empty after extraction"}
                 )
-            
+                origin = request.headers.get("origin", "*")
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+                return response
+
             payload = verify_access_token(access_token)
             request.state.payload = payload
-            
+
         except ExpiredSignatureError as e:
-            return JSONResponse(
+            response = JSONResponse(
                 status_code=401,
                 content={"detail": f"ExpiredSignatureError: {str(e)}"}
             )
+            origin = request.headers.get("origin", "*")
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
         except InvalidTokenError as e:
-            return JSONResponse(
+            response = JSONResponse(
                 status_code=401,
                 content={"detail": f"InvalidTokenError: {str(e)}"}
             )
+            origin = request.headers.get("origin", "*")
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
         except Exception as e:
             print(f"Erreur inattendue dans le middleware: {type(e).__name__}: {e}")
-            return JSONResponse(
+            response = JSONResponse(
                 status_code=500,
                 content={"detail": f"Internal Server Error: {type(e).__name__}"}
             )
+            origin = request.headers.get("origin", "*")
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
     
     return await call_next(request)
 
