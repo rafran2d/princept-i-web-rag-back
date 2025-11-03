@@ -188,8 +188,8 @@ async def login(User : UserExternalInput) :
                 max_age= REFRESH_TOKEN_EXPIRES_AT * 24 * 60 * 60,
                 httponly=True,
                 secure=False,
-                samesite="none",
-                path="/"        
+                samesite="lax",
+                path="/"
             )
 
             return response
@@ -290,7 +290,7 @@ async def refresh_access_token(request: Request):
             max_age=REFRESH_TOKEN_EXPIRES_AT * 24 * 60 * 60,
             httponly=True,
             secure=False,
-            samesite='none',
+            samesite='lax',
             path="/"
         )
 

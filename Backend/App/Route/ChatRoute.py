@@ -9,7 +9,7 @@ from App.Service.LLMOperationSerivice import generating_response
 from App.Schema.DocumentSchema import DocumentRead , StatusEnum as documentstatus
 from App.Schema.DocumentChunkSchema import ChunkRead
 from App.Schema.ChatMessageSchema import MessageOutput, MessageInput, SenderEnum
-from App.Schema.ChatSchema import statusenum,ChatInput
+from App.Schema.ChatSchema import statusenum,ChatInput,ChatOutput
 from App.Service.Document_service import read_document,delete_all_document,delete_documents_except
 from App.Service.ChatService import create_chat, read_chat_list, read_status_chat, increment_num_message,if_exist
 from App.Service.States.DocumentContext import DocumentContext
@@ -28,6 +28,27 @@ chat_route = APIRouter(
     prefix="/chat",
     tags=['chat']
 )
+
+
+@chat_route.get("/", response_model=List[ChatOutput])
+async def list_chats(offset: Optional[datetime] = Query(None, description="Timestamp for pagination offset")):
+    """
+    List all chats for the authenticated user.
+
+    Parameters:
+    - offset (datetime, optional): Pagination offset for listing chats.
+
+    Returns:
+    - List[ChatOutput]: List of all chats with their metadata.
+
+    Raises:
+    - HTTPException 500: If any unexpected error occurs while fetching chat list.
+    """
+    try:
+        chats = await read_chat_list(offset)
+        return chats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(type(e)) + ": " + str(e))
 
 
 @chat_route.get("/{chat_id}/messages", response_model=LoadConversationOutput)

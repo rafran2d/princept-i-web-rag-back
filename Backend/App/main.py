@@ -6,6 +6,7 @@ from App.Route.ChatRoute import chat_route
 from App.Route.AuthRoute import auth_route
 from jwt import InvalidTokenError, ExpiredSignatureError
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from dotenv import load_dotenv
 import os
 
@@ -18,23 +19,53 @@ app = FastAPI(
     version="1.0.0"
 )
 
-origins = [
-    "http://localhost:3001",
-    "http://127.0.0.1:3001"
-]
+# Custom CORS middleware for development - allows all origins with credentials
+class CustomCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True, 
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+        # Get requested headers for preflight
+        requested_headers = request.headers.get("access-control-request-headers", "*")
+
+        if request.method == "OPTIONS":
+            response = JSONResponse(content={}, status_code=200)
+            # Set CORS headers for preflight
+            if origin:
+                response.headers["Access-Control-Allow-Origin"] = origin
+            else:
+                response.headers["Access-Control-Allow-Origin"] = "*"
+
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = requested_headers
+            response.headers["Access-Control-Max-Age"] = "86400"  # 24 hours
+            return response
+
+        # For actual requests
+        response = await call_next(request)
+
+        # Allow the requesting origin (whatever it is)
+        if origin:
+            response.headers["Access-Control-Allow-Origin"] = origin
+        else:
+            response.headers["Access-Control-Allow-Origin"] = "*"
+
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = requested_headers
+
+        return response
+
+app.add_middleware(CustomCORSMiddleware)
 
 @app.middleware("http")
 async def verify_jwt_authenticity(request: Request, call_next):
     public_paths = ["/", "/docs", "/openapi.json", "/redoc"]
-    
+
+    # Allow OPTIONS requests for CORS preflight
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
     if request.url.path in public_paths or request.url.path.startswith("/auth"):
         return await call_next(request)
     
