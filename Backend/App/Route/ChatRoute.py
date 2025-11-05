@@ -5,7 +5,7 @@ from App.Exception.ChunkException import ChunkStepError
 from App.Exception.ChatException import UnvailableChatError
 from App.Exception.DocumentException import DocumentNumberError, NumberPageError,DocumentDeleteError
 from App.Schema.ChatRouteSchema import QuestionInput, IngestionOutput, LoadConversationOutput, MessageManagementOutput
-from App.Service.LLMOperationSerivice import generating_response
+from App.Service.LLMOperationSerivice import generating_response,create_title_chat
 from App.Schema.DocumentSchema import DocumentRead , StatusEnum as documentstatus
 from App.Schema.DocumentChunkSchema import ChunkRead
 from App.Schema.ChatMessageSchema import MessageOutput, MessageInput, SenderEnum
@@ -51,8 +51,9 @@ async def list_chats(offset: Optional[datetime] = Query(None, description="Times
         raise HTTPException(status_code=500, detail=str(type(e)) + ": " + str(e))
 
 
+
 @chat_route.get("/{chat_id}/messages", response_model=LoadConversationOutput)
-async def load_conversation(chat_id: uuid.UUID, offset: Optional[datetime] = Query(None, description="Timestamp for pagination offset")) -> LoadConversationOutput :
+async def load_conversation(chat_id: uuid.UUID) -> LoadConversationOutput :
     """
     Load all messages from a specific chat and list all chats in the database.
 
@@ -72,12 +73,9 @@ async def load_conversation(chat_id: uuid.UUID, offset: Optional[datetime] = Que
     """
     try :
         Messages: list[MessageOutput] = await Read_Message(chat_id)
-        chats = await read_chat_list(offset)
-        docs = await read_document(chat_id)
         return LoadConversationOutput(
             status_code=200,
-            all_messages=Messages,
-            all_chat=chats,
+            data=Messages,
             message="Conversation loaded successfully"
         )
     except Exception as e :
@@ -133,6 +131,7 @@ async def message_managing(chat_id: uuid.UUID, payload: QuestionInput) :
     """
     question = payload.message
     try :
+        await create_title_chat(payload.message,chat_id)
         if await read_status_chat(chat_id) == statusenum.Usable :
             
             documents = await read_document(chat_id)
@@ -165,18 +164,30 @@ async def message_managing(chat_id: uuid.UUID, payload: QuestionInput) :
 
             return MessageManagementOutput(
                 status_code=200,
-                response=message_output,
+                response=message_output.content,
                 message="Answer generated successfully"
+            )
+        else :
+            return MessageManagementOutput(
+                status_code=200,
+                message="The chat is not usable yet"
             )
 
     except UnvailableChatError as e:
         print(type(e))
         print(e)
         raise HTTPException(status_code=503,detail=str(type(e))+": "+ str(e))
-
-
-    except (ValidationError,Exception) as e :
+    
+    except ValidationError as e :
+        print(type(e))
+        print(e)
         raise HTTPException(status_code=403,detail=str(type(e))+": "+ str(e))
+    
+    except Exception as e :
+        print(type(e))
+        print(e)
+        raise HTTPException(status_code=500, detail=str(type(e))+": "+ str(e))
+
 
 
 @chat_route.post("/{chat_id}/documents", response_model=IngestionOutput)

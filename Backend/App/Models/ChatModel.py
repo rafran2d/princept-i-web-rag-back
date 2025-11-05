@@ -12,7 +12,7 @@ class ChatModel(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
-    title: Mapped[str] = mapped_column(nullable=True)
+    title: Mapped[str] = mapped_column(nullable=True,default="New chat")
     num_messages : Mapped[int] = mapped_column(default=0)
     status: Mapped[statusenum] = mapped_column(PgEnum(statusenum, name="statusenum_chat"),default=statusenum.Usable)
     created_at: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.now)

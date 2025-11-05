@@ -1,5 +1,7 @@
 from App.Service.Embedding_service import read_embedding
 from App.Service.Chunk_service import read_chunk
+from App.Service.ChatService import update_title_chat,read_chat
+from App.Exception.ChatException import CreateTitleError,UpdateTiltleChatError,ReadChatError
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 import os
@@ -23,9 +25,11 @@ Instruction for using the provided documents and metadata
 - Use more information from items with higher contextual relevance and less from lower-ranked items.
 
 2. Data presence check
-- If the topic of the question does not match the content of the provided data, respond in the same language as the question: 
-  'The submitted documents do not contain information about the topic mentioned in the question.'
+- If the topic of the question does not match the content of the provided data, respond in the same language as the question:
+  "The submitted documents do not contain information about (the topic) mentioned in the question."Say it the way in the following exemples.
+  Ex: The submitted documnets do not contain information about Batman.
 - Do not fabricate, guess, or infer answers when the needed information is absent.
+
 
 3. Input structure
 - Each input item contains: { content, meta_data }
@@ -39,20 +43,10 @@ Instruction for using the provided documents and metadata
 - Mention only the documents and concerned pages if given.
 - Use the format: Document: [document name]
 - Include only pages/paragraphs actually relevant to your answer.
+- If no sources are relevant, do not add a "Sources" section.
 
 5. Structure of the output
-5.1 Headings
-- Use '#' for main titles, '##' for subtitles, '###' for sub-subtitles, etc.
-- Headings should summarize the following section clearly.
-
-5.2 Paragraphs
-- Write clear and detailed explanations for each point.
-
-5.3 Lists
-- Use '-' for unordered lists and '1.' for ordered lists.
-- Each item should contain only one idea.
-
-5.4 Tables
+5.1 Tables
 - Use Markdown table format if a table is needed:
     ```
     | Column 1 | Column 2 | Column 3 |
@@ -74,6 +68,7 @@ Instruction for using the provided documents and metadata
 8. Safety and accuracy
 - If the provided data is ambiguous or incomplete, state it and cite only relevant parts.
 - Never invent facts or attribute unsupported claims to the sources.
+
 """
 
 async def chunk_embedding(question : str) -> list[float] :
@@ -156,3 +151,24 @@ async def generating_response(question: str, chat_id: uuid.UUID) -> str :
 
     except Exception as e :
         raise Exception(f"Error during the response generation process: {e}")
+
+
+async def create_title_chat(question: str, chat_id:uuid.UUID):
+    input_text = f"Create a clear title for a chat from the message between brackets: ({question})"
+    try:
+        chat = await read_chat(chat_id)
+        if(chat.num_messages==0):
+            response = await client.responses.create(
+                model="gpt-5",
+                input=input_text
+            )
+            await update_title_chat(chat_id,response.output_text)
+
+    except ReadChatError:
+        raise
+
+    except UpdateTiltleChatError:
+        raise 
+
+    except Exception as e:
+        raise CreateTitleError(f"Error during the generating title process/Original error:",e)

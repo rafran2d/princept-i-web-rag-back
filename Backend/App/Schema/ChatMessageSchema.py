@@ -17,13 +17,9 @@ class MessageInput(BaseModel):
     sources : Optional[list] = None
 
 class MessageOutput(BaseModel):
-    id : uuid.UUID
-    chat_id : uuid.UUID
     role : SenderEnum
     content : str
-    sources : Optional[list] = None
     created_at : datetime.datetime
 
     class Config:
         from_attributes = True
-

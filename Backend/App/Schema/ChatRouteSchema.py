@@ -12,13 +12,12 @@ class IngestionOutput(BaseModel):
 
 class LoadConversationOutput(BaseModel):
     status_code : int
-    all_messages : List[MessageOutput]
-    all_chat : List[ChatOutput]
+    data : List[MessageOutput]
     message : str
 
 class MessageManagementOutput(BaseModel):
     status_code : int 
-    response : MessageOutput
+    response : str|None
     message : str
 
 class QuestionInput(BaseModel):

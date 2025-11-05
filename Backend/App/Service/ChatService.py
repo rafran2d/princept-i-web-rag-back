@@ -1,5 +1,4 @@
 from App.Models.ChatModel import ChatModel
-from App.Models.UserModel import UserModel 
 from App.Schema.ChatSchema import ChatOutput,ChatInput,statusenum
 from App.database import AsyncSessionLocal
 from App.Exception.ChatException import (
@@ -82,7 +81,10 @@ async def update_title_chat(chat_id : uuid.UUID, title: str) :
                 if not chat_obj :
                     raise UpdateTiltleChatError(f"Chat: {chat_id} not found")
                 chat_obj.title = title #change teh title value
-                
+
+    except UpdateTiltleChatError:
+        raise
+
     except Exception as e :
         raise UpdateTiltleChatError("Error encountered during the update title process")
 
@@ -135,29 +137,41 @@ async def read_status_chat(chat_id : uuid.UUID) -> str :
         raise ReadChatError(f"Failed to read chat {chat_id}. Cause: {e}")
 
 
+
 async def read_chat(chat_id : uuid.UUID)-> ChatOutput :
     """
     Reads a chat by its ID.
-
     Args:
         chat_id (uuid.UUID): The unique ID of the chat.
-
     Returns:
         ChatOutput: The chat object retrieved from the database.
-
     Raises:
         ReadChatError: If reading the chat fails.
     """
     try:
-        async with AsyncSessionLocal() as session : #start communication with the db
-            async with session.begin() : #start the conversation
-                stmt = select(ChatModel).where(ChatModel.id == chat_id)
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                stmt = (
+                    select(ChatModel)
+                    .where(ChatModel.id == chat_id)
+                    .options(
+                        selectinload(ChatModel.document),
+                        selectinload(ChatModel.message)
+                    )
+                )
                 response = await session.execute(stmt)
                 chat_obj = response.scalars().first()
-        return ChatOutput.from_orm(chat_obj)
+                
+                if not chat_obj:
+                    raise ReadChatError(f"Chat {chat_id} not found")
+                
+                return ChatOutput.from_orm(chat_obj)
+                
+    except ReadChatError:
+        raise
     except Exception as e:
         raise ReadChatError(f"Failed to read chat {chat_id}. Cause: {e}")
-
+    
 
 async def read_chat_list(offset : Optional[datetime], max_returns = 15) -> list[ChatOutput] :
     """
