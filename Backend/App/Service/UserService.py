@@ -8,8 +8,8 @@ from App.Exception.UserException import (
     IncorrectPasswordError,
     EmailStructError
 )
-from App.Models.UserModel import UserModel as Model
-from App.Schema.UserShcema import UserInput, UserOutput,UserInternalOutput, statususer,UserExternalInput,UserExternalInputSG
+from App.Models.UserModel import UserModel as Model,statususer
+from App.Schema.UserShcema import UserInput, UserOutput,UserInternalOutput, statususer,UserExternalInput,UserExternalInputSG,RoleEnum
 from App.database import AsyncSessionLocal
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -111,6 +111,54 @@ async def create_user(user_input: UserExternalInputSG) -> UserOutput :
         raise UserCreateError(f"Failed to create the user {user_input.display_name}.Original error:{e}") from e
 
 
+
+async def create_user_admin(user_input: UserExternalInputSG) -> UserOutput :
+    """
+    Create a new user in the database with a hashed password.
+
+    Args:
+        user_input (UserInput): Pydantic model containing user data (email, display_name, password, role).
+
+    Returns:
+        UserOutput: Pydantic model representing the newly created user.
+
+    Raises:
+        UserCreateError: If the user cannot be created due to a database error.
+        EmailAlreadyUsedError: If the email is already used by another user.
+        EmailStruct: If the email format is invalid.
+    """
+    try :
+        if await if_email_exist(user_input.email) :
+            raise EmailAlreadyUsedError(f"The email : {user_input.email} is already used")
+        
+        else :
+            hashed_password = hash_password(user_input.password)
+
+            async with AsyncSessionLocal() as session :  #start communication with the db 
+                async with session.begin() : #start the conversation
+                    new_user = Model(
+                        email=user_input.email,
+                        display_name=user_input.display_name,
+                        hashed_password=hashed_password,
+                        status=statususer.approved,
+                        role=RoleEnum.admin
+                    )
+                    session.add(new_user)
+                    await session.flush() #send the modification without commiting yet
+
+            return UserOutput.from_orm(new_user)
+
+    except ValidationError as e :
+        raise EmailStructError(f"The email {user_input.email} is not valid. Original Error :{e}") from e
+
+    except EmailAlreadyUsedError :
+        raise
+
+    except (SQLAlchemyError, Exception) as e :
+        raise UserCreateError(f"Failed to create the user {user_input.display_name}.Original error:{e}") from e
+
+
+
 async def read_user_email(email : EmailStr) -> UserInternalOutput :
     """
     Retrieve a user from the database by their email.
@@ -143,7 +191,35 @@ async def read_user_email(email : EmailStr) -> UserInternalOutput :
 
     except (SQLAlchemyError,Exception) as e :
         raise ReadUserError(f"Failed to read the user with the email : {e} ")
+
+
+async def read_registers() -> list[UserOutput] | None:
+    """
+    Retrieve all users from the database who have a 'pending' status.
+
+    Returns:
+        list[UserOutput] | None: 
+            A list of Pydantic models representing users with a pending status, 
+            or None if no users are found.
+
+    Raises:
+        SQLAlchemyError: If there is an error while reading the users from the database.
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                stmt = select(Model).where(Model.status == statususer.pending)
+                response = await session.execute(stmt)
+                user_obj = response.scalars().all()
+                
+                if user_obj:
+                    return [UserOutput.from_orm(user) for user in user_obj]
+                else:
+                    return None
     
+    except SQLAlchemyError as e:
+        raise SQLAlchemyError(f"Failed to read registers. Original error: {e}")
+
 
 async def read_user_id(user_id: uuid.UUID) -> UserOutput:
     """

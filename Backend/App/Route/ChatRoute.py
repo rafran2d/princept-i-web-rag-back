@@ -30,13 +30,14 @@ chat_route = APIRouter(
 )
 
 
-@chat_route.get("/", response_model=List[ChatOutput])
-async def list_chats(offset: Optional[datetime] = Query(None, description="Timestamp for pagination offset")):
+@chat_route.get("/{user_id}", response_model=List[ChatOutput])
+async def list_chats(user_id: uuid.UUID,offset: Optional[datetime] = Query(None, description="Timestamp for pagination offset")):
     """
     List all chats for the authenticated user.
 
     Parameters:
     - offset (datetime, optional): Pagination offset for listing chats.
+    - user_id (uuid)
 
     Returns:
     - List[ChatOutput]: List of all chats with their metadata.
@@ -45,7 +46,7 @@ async def list_chats(offset: Optional[datetime] = Query(None, description="Times
     - HTTPException 500: If any unexpected error occurs while fetching chat list.
     """
     try:
-        chats = await read_chat_list(offset)
+        chats = await read_chat_list(offset,user_id)
         return chats
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(type(e)) + ": " + str(e))

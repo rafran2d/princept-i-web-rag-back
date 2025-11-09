@@ -173,7 +173,7 @@ async def read_chat(chat_id : uuid.UUID)-> ChatOutput :
         raise ReadChatError(f"Failed to read chat {chat_id}. Cause: {e}")
     
 
-async def read_chat_list(offset : Optional[datetime], max_returns = 15) -> list[ChatOutput] :
+async def read_chat_list(offset : Optional[datetime], user_id:uuid.UUID,max_returns = 15) -> list[ChatOutput] :
     """
     Reads a list of chats with optional pagination.
 
@@ -194,7 +194,7 @@ async def read_chat_list(offset : Optional[datetime], max_returns = 15) -> list[
                     stmt = select(ChatModel).options(
                         selectinload(ChatModel.message),  # Charge tous les documents liés
                         selectinload(ChatModel.document)    # Charge tous les messages liés
-                    ).order_by(ChatModel.updated_at.desc()).limit(max_returns)
+                    ).where(ChatModel.user_id == user_id).order_by(ChatModel.updated_at.desc()).limit(max_returns)
                     response = await session.execute(stmt)
                     chat_list = response.scalars().all()
                 else:  # Pagination: return the next 15 messages after the offset

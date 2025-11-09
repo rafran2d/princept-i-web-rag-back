@@ -3,7 +3,9 @@ from App.Service.UserService import (
     compare_passwd,
     read_user_id,
     set_rejected,
-    set_approved
+    set_approved,
+    read_registers,
+    create_user_admin
 )
 from App.Service.Authentification.TokenService import (
     generate_access_token,
@@ -13,7 +15,7 @@ from App.Service.Authentification.TokenService import (
     set_revoked_token,
     read_refresh_token
 )
-from App.Schema.UserShcema import UserOutput,UserInput,UserExternalInput,UserExternalInputSG
+from App.Schema.UserShcema import UserOutput,UserExternalInput,UserExternalInputSG,statususer
 from App.Schema.RefreshTokenSchema import RefreshTokenInput
 from App.Schema.AuthRouteSchema import Sign_upoutput
 from App.Exception.UserException import (
@@ -79,8 +81,47 @@ async def sign_up(User : UserExternalInputSG) :
         print(e)
         raise HTTPException(status_code=500,detail=str(type(e))+": "+ str(e))
     
+@auth_route.post("/sign_up/admin",response_model=Sign_upoutput )
+async def sign_up(User : UserExternalInputSG) :
+    """
+    Handle user registration.
 
-@auth_route.post("/approve/{user_id}")
+    This endpoint creates a new user based on the provided input data.
+    Returns a success message and the created user object upon successful registration.
+
+    Args:
+        User (UserInput): User data containing email and password.
+
+    Returns:
+        Sign_upoutput: The response containing the status code, created user, and success message.
+        JSONResponse: Contains a message informing that the Email is already used or the email is invalid
+
+    Raises:
+        HTTPException: If the email is already used, invalid, or an unexpected error occurs.
+    """
+    try:
+        user_rseponse : UserOutput =  await create_user_admin(User)
+
+        return Sign_upoutput(
+            status_code= 201,
+            data= user_rseponse,
+            message= "User created successfuly"
+        )
+
+    except EmailAlreadyUsedError as e :
+        return JSONResponse(status_code=200,content={"message":"Email already used"})
+    
+    except EmailStructError as e :
+        return JSONResponse(status_code=200, content={"message":"Invalid Email"})
+    
+    except Exception as e:
+        print(type(e))
+        print(e)
+        raise HTTPException(status_code=500,detail=str(type(e))+": "+ str(e))
+    
+
+
+@auth_route.patch("/approve/{user_id}")
 async def approve_user(user_id: uuid.UUID):
     """
     Approve a user by setting their status to 'approved'.
@@ -114,7 +155,7 @@ async def approve_user(user_id: uuid.UUID):
         raise HTTPException(status_code=500, detail=str(type(e)) + ": " + str(e))
 
 
-@auth_route.post("/rejected/{user_id}")
+@auth_route.patch("/rejecte/{user_id}")
 async def reject_user(user_id: uuid.UUID):
     """
     Reject a user by setting their status to 'rejected'.
@@ -171,28 +212,33 @@ async def login(User : UserExternalInput) :
         if_correct,user_output = await compare_passwd(User)
 
         if if_correct :
-            access_token = generate_access_token(user_output)
-            refresh_token = generate_refresh_token()
-            refresh_token_input = RefreshTokenInput(
-                user_id= user_output.id,
-                token= refresh_token
-            )
+            if user_output.status == statususer.pending:    
+                return JSONResponse(status_code=200,content={"message":"This user is pending"})
+            elif user_output.status == statususer.rejected:
+                return JSONResponse(status_code=200,content={"message":"This user is rejected"})
+            else:
+                access_token = generate_access_token(user_output)
+                refresh_token = generate_refresh_token()
+                refresh_token_input = RefreshTokenInput(
+                    user_id= user_output.id,
+                    token= refresh_token
+                )
 
-            await create_refresh_token(refresh_token_input)
+                await create_refresh_token(refresh_token_input)
 
-            response = JSONResponse(status_code=200,content={"message":"Login successful",
-                "access_token" : access_token})
-            response .set_cookie(
-                key="refresh_token",
-                value= refresh_token,
-                max_age= REFRESH_TOKEN_EXPIRES_AT * 24 * 60 * 60,
-                httponly=True,
-                secure=False,
-                samesite="lax",
-                path="/"
-            )
+                response = JSONResponse(status_code=200,content={"message":"Login successful",
+                    "access_token" : access_token})
+                response .set_cookie(
+                    key="refresh_token",
+                    value= refresh_token,
+                    max_age= REFRESH_TOKEN_EXPIRES_AT * 24 * 60 * 60,
+                    httponly=True,
+                    secure=False,
+                    samesite="lax",
+                    path="/"
+                )
 
-            return response
+                return response
 
     except UserNotFoundError as e :
         res = JSONResponse(status_code=200, content={"message":"User Not Found"})
@@ -248,6 +294,24 @@ async def revoked_refresh_token(request : Request) :
 
 @auth_route.post('/refresh')
 async def refresh_access_token(request: Request):
+    """
+    Refresh the user's access token using a valid refresh token stored in cookies.
+
+    This endpoint verifies the validity of the refresh token, revokes the old one, 
+    generates new access and refresh tokens, and updates the database accordingly. 
+    The new refresh token is stored as an HTTP-only cookie.
+
+    Args:
+        request (Request): The incoming HTTP request containing cookies.
+
+    Returns:
+        JSONResponse: A response containing a new access token and a success message.
+
+    Raises:
+        TokenNotFoundError: If no refresh token is found in cookies or if the token is invalid.
+        TokenRevokedError: If the refresh token has already been revoked.
+        HTTPException: If an unexpected error occurs during the refresh process.
+    """
     try:
         refresh_token = request.cookies.get("refresh_token")
         print(f"Cookies reçus: {request.cookies}")  
@@ -301,6 +365,36 @@ async def refresh_access_token(request: Request):
         print(e)
         raise HTTPException(status_code=401, detail=str(type(e)) + ": " + str(e))
     
+    except Exception as e:
+        print(type(e))
+        print(e)
+        raise HTTPException(status_code=500, detail=str(type(e)) + ": " + str(e))
+
+
+@auth_route.get("/registers")
+async def get_registers(request: Request):
+    """
+    Retrieve all users with a 'pending' status from the database.
+
+    This endpoint is typically used by administrators to view users who have 
+    registered but whose accounts are not yet approved or activated.
+
+    Args:
+        request (Request): The incoming HTTP request.
+
+    Returns:
+        JSONResponse: 
+            - 200 OK with a list of pending users if any exist.
+            - 200 OK with an empty list if no pending users are found.
+
+    Raises:
+        HTTPException: If an error occurs while retrieving the pending users.
+    """
+    try:
+        registers: list[UserOutput] | None = await read_registers()
+
+        return registers or []
+
     except Exception as e:
         print(type(e))
         print(e)
